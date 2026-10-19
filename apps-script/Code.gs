@@ -1,0 +1,247 @@
+/**
+ * ChamCong — Google Apps Script Web App
+ *
+ * Sheet "Attendance": Timestamp | EmployeeName | Date | CheckIn | CheckOut | Status | Note
+ * Sheet "Employees":  Name | PIN | Role | Active
+ *
+ * Deploy: Deploy → New deployment → Web app
+ *   Execute as: Me
+ *   Who has access: Anyone
+ * Copy the Web App URL into NEXT_PUBLIC_SHEETS_WEBAPP_URL
+ */
+
+var ATTENDANCE_SHEET = "Attendance";
+var EMPLOYEES_SHEET = "Employees";
+
+function doGet() {
+  return json_({ ok: true, data: { service: "ChamCong", version: 1 } });
+}
+
+function doPost(e) {
+  try {
+    var body = JSON.parse(e.postData.contents);
+    var action = body.action;
+    var payload = body.payload || {};
+    var result;
+
+    switch (action) {
+      case "listEmployees":
+        result = listEmployees_();
+        break;
+      case "listAttendance":
+        result = listAttendance_(payload);
+        break;
+      case "verifyPin":
+        result = verifyPin_(payload);
+        break;
+      case "checkIn":
+        result = checkIn_(payload);
+        break;
+      case "checkOut":
+        result = checkOut_(payload);
+        break;
+      case "addEmployee":
+        result = addEmployee_(payload);
+        break;
+      case "deactivateEmployee":
+        result = deactivateEmployee_(payload);
+        break;
+      default:
+        return json_({ ok: false, error: "Unknown action: " + action });
+    }
+
+    return json_(result);
+  } catch (err) {
+    return json_({ ok: false, error: String(err) });
+  }
+}
+
+function json_(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(
+    ContentService.MimeType.JSON
+  );
+}
+
+function ss_() {
+  return SpreadsheetApp.getActiveSpreadsheet();
+}
+
+function sheet_(name) {
+  var sh = ss_().getSheetByName(name);
+  if (!sh) throw new Error("Missing sheet: " + name);
+  return sh;
+}
+
+function today_() {
+  return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+}
+
+function nowTime_() {
+  return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "HH:mm");
+}
+
+function listEmployees_() {
+  var sh = sheet_(EMPLOYEES_SHEET);
+  var values = sh.getDataRange().getValues();
+  if (values.length < 2) return { ok: true, data: [] };
+  var data = [];
+  for (var i = 1; i < values.length; i++) {
+    var row = values[i];
+    if (!row[0]) continue;
+    data.push({
+      name: String(row[0]),
+      pin: String(row[1]),
+      role: String(row[2] || "employee"),
+      active: String(row[3]).toLowerCase() === "true" || row[3] === true,
+    });
+  }
+  return { ok: true, data: data };
+}
+
+function listAttendance_(payload) {
+  var sh = sheet_(ATTENDANCE_SHEET);
+  var values = sh.getDataRange().getValues();
+  if (values.length < 2) return { ok: true, data: [] };
+  var data = [];
+  for (var i = 1; i < values.length; i++) {
+    var row = values[i];
+    if (!row[1]) continue;
+    var rec = {
+      timestamp: row[0] instanceof Date ? row[0].toISOString() : String(row[0]),
+      employeeName: String(row[1]),
+      date: row[2] instanceof Date
+        ? Utilities.formatDate(row[2], Session.getScriptTimeZone(), "yyyy-MM-dd")
+        : String(row[2]),
+      checkIn: row[3] ? String(row[3]) : "",
+      checkOut: row[4] ? String(row[4]) : "",
+      status: String(row[5] || ""),
+      note: row[6] ? String(row[6]) : "",
+    };
+    if (payload.name && rec.employeeName !== payload.name) continue;
+    if (payload.from && rec.date < payload.from) continue;
+    if (payload.to && rec.date > payload.to) continue;
+    data.push(rec);
+  }
+  data.sort(function (a, b) {
+    if (a.date === b.date) return a.timestamp < b.timestamp ? 1 : -1;
+    return a.date < b.date ? 1 : -1;
+  });
+  return { ok: true, data: data };
+}
+
+function verifyPin_(payload) {
+  var list = listEmployees_().data;
+  for (var i = 0; i < list.length; i++) {
+    var e = list[i];
+    if (e.name === payload.name && e.pin === String(payload.pin) && e.active) {
+      return { ok: true, data: { name: e.name, role: e.role } };
+    }
+  }
+  return { ok: false, error: "Tên hoặc mã PIN không đúng" };
+}
+
+function findTodayRow_(sh, name, date) {
+  var values = sh.getDataRange().getValues();
+  for (var i = 1; i < values.length; i++) {
+    var rowDate =
+      values[i][2] instanceof Date
+        ? Utilities.formatDate(values[i][2], Session.getScriptTimeZone(), "yyyy-MM-dd")
+        : String(values[i][2]);
+    if (String(values[i][1]) === name && rowDate === date) {
+      return i + 1; // 1-based
+    }
+  }
+  return -1;
+}
+
+function checkIn_(payload) {
+  var name = payload.name;
+  var date = today_();
+  var sh = sheet_(ATTENDANCE_SHEET);
+  var row = findTodayRow_(sh, name, date);
+  if (row > 0) {
+    var existingIn = sh.getRange(row, 4).getValue();
+    if (existingIn) return { ok: false, error: "Bạn đã check-in hôm nay" };
+  }
+  var time = nowTime_();
+  var record = {
+    timestamp: new Date().toISOString(),
+    employeeName: name,
+    date: date,
+    checkIn: time,
+    checkOut: "",
+    status: "checked_in",
+    note: payload.note || "",
+  };
+  if (row > 0) {
+    sh.getRange(row, 1, row, 7).setValues([
+      [new Date(), name, date, time, "", "checked_in", record.note],
+    ]);
+  } else {
+    sh.appendRow([new Date(), name, date, time, "", "checked_in", record.note]);
+  }
+  return { ok: true, data: record };
+}
+
+function checkOut_(payload) {
+  var name = payload.name;
+  var date = today_();
+  var sh = sheet_(ATTENDANCE_SHEET);
+  var row = findTodayRow_(sh, name, date);
+  if (row < 0) return { ok: false, error: "Bạn chưa check-in hôm nay" };
+  var checkInVal = sh.getRange(row, 4).getValue();
+  var checkOutVal = sh.getRange(row, 5).getValue();
+  if (!checkInVal) return { ok: false, error: "Bạn chưa check-in hôm nay" };
+  if (checkOutVal) return { ok: false, error: "Bạn đã check-out hôm nay" };
+  var time = nowTime_();
+  sh.getRange(row, 5).setValue(time);
+  sh.getRange(row, 6).setValue("checked_out");
+  return {
+    ok: true,
+    data: {
+      timestamp: new Date().toISOString(),
+      employeeName: name,
+      date: date,
+      checkIn: String(checkInVal),
+      checkOut: time,
+      status: "checked_out",
+      note: String(sh.getRange(row, 7).getValue() || ""),
+    },
+  };
+}
+
+function addEmployee_(payload) {
+  var name = String(payload.name || "").trim();
+  var pin = String(payload.pin || "").trim();
+  var role = payload.role || "employee";
+  if (!name || !/^\d{4}$/.test(pin)) {
+    return { ok: false, error: "Tên và PIN 4 số là bắt buộc" };
+  }
+  var list = listEmployees_().data;
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].name === name) return { ok: false, error: "Nhân viên đã tồn tại" };
+  }
+  sheet_(EMPLOYEES_SHEET).appendRow([name, pin, role, true]);
+  return { ok: true, data: { name: name, pin: pin, role: role, active: true } };
+}
+
+function deactivateEmployee_(payload) {
+  var name = payload.name;
+  var sh = sheet_(EMPLOYEES_SHEET);
+  var values = sh.getDataRange().getValues();
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][0]) === name) {
+      sh.getRange(i + 1, 4).setValue(false);
+      return {
+        ok: true,
+        data: {
+          name: name,
+          pin: String(values[i][1]),
+          role: String(values[i][2]),
+          active: false,
+        },
+      };
+    }
+  }
+  return { ok: false, error: "Không tìm thấy nhân viên" };
+}
