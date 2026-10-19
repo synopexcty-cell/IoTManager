@@ -25,7 +25,17 @@
 2. Delete any default code and paste the contents of `Code.gs`.
 3. Save the project (name it e.g. `ChamCong`).
 
-## 3. Deploy as Web App
+## 3. Set API secret (bắt buộc)
+
+1. Trong Apps Script: **Project Settings** (biểu tượng bánh răng) → **Script properties**.
+2. Add property:
+   - **Property**: `API_SECRET`
+   - **Value**: chuỗi dài ngẫu nhiên (ví dụ tạo bằng password manager)
+3. Dùng **cùng giá trị** cho `SHEETS_API_SECRET` trên Vercel / `.env.local`.
+
+Không set property → script dùng fallback `CHANGE_ME_SET_SCRIPT_PROPERTY` (không an toàn).
+
+## 4. Deploy as Web App
 
 1. Click **Deploy → New deployment**.
 2. Type: **Web app**.
@@ -35,15 +45,21 @@
 4. Click **Deploy**, authorize the script when prompted.
 5. Copy the **Web app URL** (ends with `/exec`).
 
-## 4. Connect the Next.js app
+## 5. Connect the Next.js app
+
+`.env.local` (hoặc Vercel Environment Variables):
 
 ```env
-NEXT_PUBLIC_SHEETS_WEBAPP_URL=https://script.google.com/macros/s/XXXX/exec
+SHEETS_WEBAPP_URL=https://script.google.com/macros/s/XXXX/exec
+SHEETS_API_SECRET=cung-gia-tri-voi-API_SECRET
 ```
 
-Redeploy on Vercel (or restart `npm run dev`) after setting the env var.
+Restart `npm run dev` / redeploy Vercel.
+
+Client **không** thấy URL hay secret — mọi request đi qua `/api/sheets`.
 
 ## Notes
 
-- After editing `Code.gs`, create a **New deployment** (or version) so the live URL picks up changes.
-- CORS: Apps Script Web Apps accept POST from browsers; the app sends `Content-Type: text/plain` to avoid preflight issues.
+- Sau khi sửa `Code.gs`, tạo **New deployment** (hoặc version mới).
+- `listEmployees` không trả PIN; chỉ `verifyPin` so khớp PIN phía server.
+- Request thiếu / sai `secret` → `{ ok: false, error: "Unauthorized" }`.

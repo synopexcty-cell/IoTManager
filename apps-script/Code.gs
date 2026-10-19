@@ -7,19 +7,35 @@
  * Deploy: Deploy → New deployment → Web app
  *   Execute as: Me
  *   Who has access: Anyone
- * Copy the Web App URL into NEXT_PUBLIC_SHEETS_WEBAPP_URL
+ *
+ * Bảo mật:
+ * 1. Đặt Script Property API_SECRET (Project Settings → Script properties)
+ *    trùng với SHEETS_API_SECRET trên Vercel / .env.local
+ * 2. listEmployees / add / deactivate KHÔNG trả PIN về client
+ * 3. Next.js gọi qua /api/sheets (URL + secret không lộ browser)
  */
 
 var ATTENDANCE_SHEET = "Attendance";
 var EMPLOYEES_SHEET = "Employees";
 
+function getSecret_() {
+  var fromProps = PropertiesService.getScriptProperties().getProperty("API_SECRET");
+  if (fromProps) return String(fromProps);
+  // Fallback tạm khi chưa set Script Property — ĐỔI NGAY khi deploy
+  return "CHANGE_ME_SET_SCRIPT_PROPERTY";
+}
+
 function doGet() {
-  return json_({ ok: true, data: { service: "ChamCong", version: 1 } });
+  return json_({ ok: true, data: { service: "ChamCong", version: 2 } });
 }
 
 function doPost(e) {
   try {
     var body = JSON.parse(e.postData.contents);
+    if (!body.secret || body.secret !== getSecret_()) {
+      return json_({ ok: false, error: "Unauthorized" });
+    }
+
     var action = body.action;
     var payload = body.payload || {};
     var result;
@@ -80,11 +96,25 @@ function nowTime_() {
   return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "HH:mm");
 }
 
+/** Public list — không kèm PIN */
 function listEmployees_() {
+  var rows = readEmployeesRaw_();
+  var data = [];
+  for (var i = 0; i < rows.length; i++) {
+    data.push({
+      name: rows[i].name,
+      role: rows[i].role,
+      active: rows[i].active,
+    });
+  }
+  return { ok: true, data: data };
+}
+
+function readEmployeesRaw_() {
   var sh = sheet_(EMPLOYEES_SHEET);
   var values = sh.getDataRange().getValues();
-  if (values.length < 2) return { ok: true, data: [] };
   var data = [];
+  if (values.length < 2) return data;
   for (var i = 1; i < values.length; i++) {
     var row = values[i];
     if (!row[0]) continue;
@@ -95,7 +125,7 @@ function listEmployees_() {
       active: String(row[3]).toLowerCase() === "true" || row[3] === true,
     });
   }
-  return { ok: true, data: data };
+  return data;
 }
 
 function listAttendance_(payload) {
@@ -130,7 +160,7 @@ function listAttendance_(payload) {
 }
 
 function verifyPin_(payload) {
-  var list = listEmployees_().data;
+  var list = readEmployeesRaw_();
   for (var i = 0; i < list.length; i++) {
     var e = list[i];
     if (e.name === payload.name && e.pin === String(payload.pin) && e.active) {
@@ -217,12 +247,12 @@ function addEmployee_(payload) {
   if (!name || !/^\d{4}$/.test(pin)) {
     return { ok: false, error: "Tên và PIN 4 số là bắt buộc" };
   }
-  var list = listEmployees_().data;
+  var list = readEmployeesRaw_();
   for (var i = 0; i < list.length; i++) {
     if (list[i].name === name) return { ok: false, error: "Nhân viên đã tồn tại" };
   }
   sheet_(EMPLOYEES_SHEET).appendRow([name, pin, role, true]);
-  return { ok: true, data: { name: name, pin: pin, role: role, active: true } };
+  return { ok: true, data: { name: name, role: role, active: true } };
 }
 
 function deactivateEmployee_(payload) {
@@ -236,7 +266,6 @@ function deactivateEmployee_(payload) {
         ok: true,
         data: {
           name: name,
-          pin: String(values[i][1]),
           role: String(values[i][2]),
           active: false,
         },

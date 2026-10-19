@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useToast } from "@/components/ui/Toast";
-import { flushOfflineQueue, isMockMode } from "@/lib/sheets";
+import { flushOfflineQueue } from "@/lib/sheets";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -36,7 +36,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [loading, user, router]);
 
   useEffect(() => {
-    if (!user || isMockMode()) return;
+    if (!user) return;
     flushOfflineQueue().then(({ success }) => {
       if (success > 0) {
         toast(`Đã đồng bộ ${success} thao tác offline`, "success");

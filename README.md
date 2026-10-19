@@ -49,29 +49,39 @@ Tóm tắt:
 
 1. Tạo spreadsheet với 2 sheet như trên, seed 1 admin.
 2. **Extensions → Apps Script** → dán `apps-script/Code.gs`.
-3. **Deploy → New deployment → Web app** (Execute as: Me, Access: Anyone).
-4. Copy URL `/exec`.
+3. Đặt Script property `API_SECRET` (xem `apps-script/README.md`).
+4. **Deploy → New deployment → Web app** (Execute as: Me, Access: Anyone).
+5. Copy URL `/exec`.
 
-### Env var
+### Env var (server-only)
 
 Tạo `.env.local`:
 
 ```env
-NEXT_PUBLIC_SHEETS_WEBAPP_URL=https://script.google.com/macros/s/YOUR_ID/exec
+SHEETS_WEBAPP_URL=https://script.google.com/macros/s/YOUR_ID/exec
+SHEETS_API_SECRET=cung-gia-tri-voi-API_SECRET
 ```
 
-Nếu biến này trống / thiếu → app chạy **mock mode**.
+Nếu `SHEETS_WEBAPP_URL` trống → **mock mode**. URL và secret **không** lộ ra browser; client chỉ gọi `/api/sheets`.
 
 ## Deploy lên Vercel
 
 1. Push repo lên GitHub.
 2. Import project trên [vercel.com](https://vercel.com).
-3. Thêm Environment Variable `NEXT_PUBLIC_SHEETS_WEBAPP_URL`.
+3. Thêm Environment Variables:
+   - `SHEETS_WEBAPP_URL`
+   - `SHEETS_API_SECRET`
 4. Deploy — không cần custom server.
 
 ```bash
 npm run build   # kiểm tra local trước khi deploy
 ```
+
+## Bảo mật (tóm tắt)
+
+- PIN không trả về client (`listEmployees` chỉ name/role/active)
+- Apps Script yêu cầu `secret` khớp `API_SECRET`
+- Proxy qua Next.js Route Handler `/api/sheets`
 
 ## Cấu trúc
 
@@ -83,9 +93,11 @@ npm run build   # kiểm tra local trước khi deploy
   /(app)/history
   /(app)/employees   (admin)
   /(app)/settings
+  /api/sheets        (proxy + mock)
 /components/ui
 /components/layout   (Sidebar, Topbar, BottomNav, AppShell)
-/lib/sheets.ts
+/lib/sheets.ts       (client → /api/sheets)
+/lib/sheets-server.ts
 /lib/types.ts
 /apps-script/Code.gs
 ```
