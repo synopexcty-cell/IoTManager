@@ -1,4 +1,4 @@
-import { getSheetsConfig, callSheetsServer } from "@/lib/sheets-server";
+import { getDataConfig, callSheetsServer } from "@/lib/sheets-server";
 import type { SheetsAction, SheetsRequest } from "@/lib/types";
 import { NextResponse } from "next/server";
 
@@ -16,8 +16,8 @@ const ALLOWED: SheetsAction[] = [
 
 /** Status — không lộ URL / secret */
 export async function GET() {
-  const { mock } = getSheetsConfig();
-  return NextResponse.json({ ok: true, mock });
+  const { mock, backend } = getDataConfig();
+  return NextResponse.json({ ok: true, mock, backend });
 }
 
 export async function POST(req: Request) {

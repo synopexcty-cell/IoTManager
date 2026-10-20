@@ -55,23 +55,29 @@ Tóm tắt:
 
 ### Env var (server-only)
 
-Tạo `.env.local`:
+Ưu tiên: **MongoDB** → Google Sheets → mock.
+
+Tạo `.env.local` (MongoDB Atlas):
+
+```env
+MONGODB_URI=mongodb+srv://USER:PASSWORD@cluster.mongodb.net/chamcong?retryWrites=true&w=majority
+```
+
+Sheets (tuỳ chọn, bỏ qua nếu đã dùng Mongo):
 
 ```env
 SHEETS_WEBAPP_URL=https://script.google.com/macros/s/YOUR_ID/exec
 SHEETS_API_SECRET=cung-gia-tri-voi-API_SECRET
 ```
 
-Nếu `SHEETS_WEBAPP_URL` trống → **mock mode**. URL và secret **không** lộ ra browser; client chỉ gọi `/api/sheets`.
+Client chỉ gọi `/api/sheets` — URI/secret **không** lộ browser. DB trống lần đầu sẽ tạo admin `Admin` / PIN `1234`.
 
 ## Deploy lên Vercel
 
 1. Push repo lên GitHub.
 2. Import project trên [vercel.com](https://vercel.com).
-3. Thêm Environment Variables:
-   - `SHEETS_WEBAPP_URL`
-   - `SHEETS_API_SECRET`
-4. Deploy — không cần custom server.
+3. Thêm Environment Variable: `MONGODB_URI` (Production + Preview).
+4. Deploy — không cần custom server. Network Access Atlas phải cho phép `0.0.0.0/0`.
 
 ```bash
 npm run build   # kiểm tra local trước khi deploy

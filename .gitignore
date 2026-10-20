@@ -26,6 +26,9 @@ yarn-error.log*
 # local env files
 .env*.local
 .env
+doc/atlas-credentials.env
+**/atlas-credentials.env
+*.credentials.env
 
 # vercel
 .vercel

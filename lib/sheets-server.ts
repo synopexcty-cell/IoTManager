@@ -1,23 +1,44 @@
+import { mongoHandler } from "./mongo-store";
+import { hasMongoUri } from "./mongodb";
 import { mockHandler } from "./sheets-mock";
 import type { SheetsRequest, SheetsResponse } from "./types";
 
-export function getSheetsConfig() {
+export type DataBackend = "mongo" | "sheets" | "mock";
+
+export function getDataConfig() {
+  const mongo = hasMongoUri();
   const url = process.env.SHEETS_WEBAPP_URL?.trim() || "";
   const secret = process.env.SHEETS_API_SECRET?.trim() || "";
+
+  let backend: DataBackend = "mock";
+  if (mongo) backend = "mongo";
+  else if (url) backend = "sheets";
+
   return {
+    backend,
+    mock: backend === "mock",
     url,
     secret,
-    mock: !url,
   };
 }
 
-/** Server-side call to Apps Script (or mock). Attaches API secret. */
+/** @deprecated dùng getDataConfig */
+export function getSheetsConfig() {
+  const c = getDataConfig();
+  return { url: c.url, secret: c.secret, mock: c.mock };
+}
+
+/** Ưu tiên: MongoDB → Google Sheets → mock */
 export async function callSheetsServer<T = unknown>(
   request: SheetsRequest
 ): Promise<SheetsResponse<T>> {
-  const { url, secret, mock } = getSheetsConfig();
+  const { backend, url, secret } = getDataConfig();
 
-  if (mock) {
+  if (backend === "mongo") {
+    return mongoHandler<T>(request);
+  }
+
+  if (backend === "mock") {
     return mockHandler<T>(request);
   }
 

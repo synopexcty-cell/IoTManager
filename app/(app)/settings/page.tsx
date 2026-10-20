@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
 import { getQueue } from "@/lib/offline-queue";
-import { fetchIsMockMode, flushOfflineQueue } from "@/lib/sheets";
+import { fetchDataBackend, flushOfflineQueue } from "@/lib/sheets";
 import { Cloud, CloudOff, Database, LogOut, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -22,11 +22,11 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const [queueCount, setQueueCount] = useState(0);
   const [syncing, setSyncing] = useState(false);
-  const [mockMode, setMockMode] = useState(true);
+  const [backend, setBackend] = useState<"mongo" | "sheets" | "mock">("mock");
 
   useEffect(() => {
     setQueueCount(getQueue().length);
-    fetchIsMockMode().then(setMockMode);
+    fetchDataBackend().then(setBackend);
   }, []);
 
   const handleSync = async () => {
@@ -84,13 +84,23 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center gap-3 rounded-lg bg-neutral-50 px-4 py-3">
-            {mockMode ? (
+            {backend === "mock" ? (
               <>
                 <CloudOff className="h-5 w-5 text-amber-500" />
                 <div>
                   <p className="text-sm font-medium text-black">Chế độ demo</p>
                   <p className="text-xs text-neutral-500">
-                    Chưa cấu hình SHEETS_WEBAPP_URL trên server
+                    Chưa cấu hình MONGODB_URI trên server
+                  </p>
+                </div>
+              </>
+            ) : backend === "mongo" ? (
+              <>
+                <Database className="h-5 w-5 text-green-600" />
+                <div>
+                  <p className="text-sm font-medium text-black">MongoDB Atlas</p>
+                  <p className="text-xs text-neutral-500">
+                    Đã kết nối qua API server
                   </p>
                 </div>
               </>
@@ -119,7 +129,7 @@ export default function SettingsPage() {
             className="w-full"
             onClick={handleSync}
             loading={syncing}
-            disabled={mockMode}
+            disabled={backend === "mock"}
           >
             <RefreshCw className="h-4 w-4" />
             Đồng bộ lại

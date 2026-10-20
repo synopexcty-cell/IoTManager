@@ -7,6 +7,7 @@ import type {
 } from "./types";
 
 let mockCache: boolean | null = null;
+let backendCache: "mongo" | "sheets" | "mock" | null = null;
 
 /** Client calls /api/sheets — URL & secret stay on server. */
 async function postToApi<T>(
@@ -23,17 +24,37 @@ async function postToApi<T>(
   return (await res.json()) as SheetsResponse<T>;
 }
 
-/** true = chưa cấu hình SHEETS_WEBAPP_URL (demo). */
+async function fetchStatus() {
+  const res = await fetch("/api/sheets");
+  const data = (await res.json()) as {
+    mock?: boolean;
+    backend?: "mongo" | "sheets" | "mock";
+  };
+  mockCache = !!data.mock;
+  backendCache = data.backend || (data.mock ? "mock" : "sheets");
+  return { mock: mockCache, backend: backendCache };
+}
+
+/** true = chưa cấu hình Mongo/Sheets (demo). */
 export async function fetchIsMockMode(): Promise<boolean> {
   if (mockCache !== null) return mockCache;
   try {
-    const res = await fetch("/api/sheets");
-    const data = (await res.json()) as { mock?: boolean };
-    mockCache = !!data.mock;
+    const s = await fetchStatus();
+    return s.mock;
   } catch {
     mockCache = true;
+    return true;
   }
-  return mockCache;
+}
+
+export async function fetchDataBackend(): Promise<"mongo" | "sheets" | "mock"> {
+  if (backendCache) return backendCache;
+  try {
+    const s = await fetchStatus();
+    return s.backend;
+  } catch {
+    return "mock";
+  }
 }
 
 /**
