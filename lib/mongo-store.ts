@@ -5,10 +5,12 @@ import {
 } from "./column-colors";
 import { cacheGet, cacheInvalidate, cacheSet } from "./server-cache";
 import { friendlyMongoError, getDb } from "./mongodb";
+import { parseOtValue } from "./ot";
 import type {
   AppSettings,
   AttendanceRecord,
   Employee,
+  OtRecord,
   SheetsRequest,
   SheetsResponse,
 } from "./types";
@@ -37,6 +39,7 @@ const ATT_TTL = 15_000;
 
 type EmpDoc = Employee & { _id?: unknown };
 type AttDoc = AttendanceRecord & { _id?: unknown };
+type OtDoc = OtRecord & { _id?: unknown };
 
 function publicEmployee(emp: EmpDoc) {
   return {
@@ -62,6 +65,7 @@ export async function mongoHandler<T>(
     const db = await getDb();
     const employees = db.collection<EmpDoc>("employees");
     const attendance = db.collection<AttDoc>("attendance");
+    const overtime = db.collection<OtDoc>("overtime");
     const settings = db.collection<SettingsDoc>("settings");
     const { action, payload = {} } = request;
 
@@ -460,6 +464,67 @@ export async function mongoHandler<T>(
         if (!res) return { ok: false, error: "Không tìm thấy nhân viên" };
         cacheInvalidate("employees:");
         return { ok: true, data: publicEmployee(res) as T };
+      }
+      case "listOt": {
+        const nameKey = payload.name ? String(payload.name) : "";
+        const fromKey = payload.from ? String(payload.from) : "";
+        const toKey = payload.to ? String(payload.to) : "";
+        const cacheKey = `ot:${nameKey}:${fromKey}:${toKey}`;
+        const cached = cacheGet<OtRecord[]>(cacheKey);
+        if (cached) return { ok: true, data: cached as T };
+
+        const filter: {
+          employeeName?: string;
+          date?: { $gte?: string; $lte?: string };
+        } = {};
+        if (payload.name) filter.employeeName = String(payload.name);
+        if (payload.from || payload.to) {
+          filter.date = {};
+          if (payload.from) filter.date.$gte = String(payload.from);
+          if (payload.to) filter.date.$lte = String(payload.to);
+        }
+        const rows = await overtime
+          .find(filter)
+          .sort({ date: 1, employeeName: 1 })
+          .limit(2000)
+          .toArray();
+        const data = rows.map(({ _id, ...rest }) => rest) as OtRecord[];
+        cacheSet(cacheKey, data, ATT_TTL);
+        return { ok: true, data: data as T };
+      }
+      case "saveOt": {
+        const name = String(payload.name || payload.employeeName || "").trim();
+        const date = String(payload.date || "").trim();
+        const value = parseOtValue(payload.value);
+        if (!name) return { ok: false, error: "Thiếu tên nhân viên" };
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+          return { ok: false, error: "Ngày không hợp lệ" };
+        }
+        if (value == null) {
+          return { ok: false, error: "Giờ OT không hợp lệ (0–24, P hoặc /)" };
+        }
+        const emp = await employees.findOne({ name, active: true });
+        if (!emp) return { ok: false, error: "Không tìm thấy nhân viên" };
+
+        if (!value) {
+          await overtime.deleteOne({ employeeName: name, date });
+          cacheInvalidate("ot:");
+          return { ok: true, data: { employeeName: name, date, value: "" } as T };
+        }
+
+        const record: OtRecord = {
+          employeeName: name,
+          date,
+          value,
+          updatedAt: new Date().toISOString(),
+        };
+        await overtime.updateOne(
+          { employeeName: name, date },
+          { $set: record },
+          { upsert: true }
+        );
+        cacheInvalidate("ot:");
+        return { ok: true, data: record as T };
       }
       case "getSettings": {
         const cached = cacheGet<AppSettings>(SETTINGS_CACHE);

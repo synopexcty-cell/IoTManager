@@ -48,6 +48,20 @@ export function clientCacheInvalidateAttendance() {
   });
 }
 
+export function clientCacheGetOt<T>(key: string): T | undefined {
+  return get<T>(`ot:${key}`);
+}
+
+export function clientCacheSetOt(key: string, value: unknown) {
+  set(`ot:${key}`, value, ATT_TTL);
+}
+
+export function clientCacheInvalidateOt() {
+  Array.from(mem.keys()).forEach((key) => {
+    if (key.startsWith("ot:")) mem.delete(key);
+  });
+}
+
 const SETTINGS_KEY = "settings:app";
 const SETTINGS_TTL = 60_000;
 

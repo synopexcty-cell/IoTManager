@@ -1,13 +1,16 @@
 import {
   clientCacheGetAttendance,
   clientCacheGetEmployees,
+  clientCacheGetOt,
   clientCacheGetSettings,
   clientCacheInvalidateAll,
   clientCacheInvalidateAttendance,
   clientCacheInvalidateEmployees,
+  clientCacheInvalidateOt,
   clientCacheInvalidateSettings,
   clientCacheSetAttendance,
   clientCacheSetEmployees,
+  clientCacheSetOt,
   clientCacheSetSettings,
 } from "./client-cache";
 import { DEFAULT_COLUMN_COLORS } from "./column-colors";
@@ -16,6 +19,7 @@ import type {
   AppSettings,
   AttendanceRecord,
   Employee,
+  OtRecord,
   SheetsRequest,
   SheetsResponse,
 } from "./types";
@@ -170,6 +174,41 @@ export async function checkOut(name: string) {
     { queueOnFail: true }
   );
   if (res.ok) clientCacheInvalidateAttendance();
+  return res;
+}
+
+export async function listOt(
+  filters?: {
+    name?: string;
+    from?: string;
+    to?: string;
+  },
+  options?: { force?: boolean }
+): Promise<OtRecord[]> {
+  const key = `${filters?.name || ""}|${filters?.from || ""}|${filters?.to || ""}`;
+  if (!options?.force) {
+    const cached = clientCacheGetOt<OtRecord[]>(key);
+    if (cached) return cached;
+  }
+  const res = await callSheets<OtRecord[]>({
+    action: "listOt",
+    payload: filters,
+  });
+  const data = res.ok && res.data ? res.data : [];
+  if (res.ok) clientCacheSetOt(key, data);
+  return data;
+}
+
+export async function saveOt(payload: {
+  name: string;
+  date: string;
+  value: string;
+}) {
+  const res = await callSheets<OtRecord>(
+    { action: "saveOt", payload },
+    { queueOnFail: true }
+  );
+  if (res.ok) clientCacheInvalidateOt();
   return res;
 }
 

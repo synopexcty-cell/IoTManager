@@ -1,10 +1,14 @@
+"use client";
+
 import {
   contrastText,
   DEFAULT_COLUMN_COLORS,
   WEEKDAY_SHORT,
 } from "@/lib/column-colors";
+import { formatOtDisplay } from "@/lib/ot";
 import type { AttendanceRecord, ColumnColors, Employee } from "@/lib/types";
 import { cn, daysInMonth, weekdayOf, workedHours } from "@/lib/utils";
+import { useEffect, useRef, useState } from "react";
 
 type CellValue = number | "P" | "/" | string | undefined;
 
@@ -17,6 +21,13 @@ function cellFromRecord(rec?: AttendanceRecord): CellValue {
   if (hours != null) return hours;
   if (rec.checkIn) return rec.checkIn;
   return undefined;
+}
+
+function cellFromEntry(raw?: string): CellValue {
+  if (!raw) return undefined;
+  if (raw === "P" || raw === "/") return raw;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : raw;
 }
 
 function isLeave(value: CellValue) {
@@ -33,27 +44,53 @@ export function MonthGrid({
   month,
   employees,
   records,
+  entries,
   columnColors = DEFAULT_COLUMN_COLORS,
+  title,
+  hoursLabel = "Giờ",
+  footerLabel = "Tổng người có mặt",
+  noteHours = "Số = số giờ làm (vào → ra)",
+  editable = false,
+  canEditName,
+  onCommit,
 }: {
   year: number;
   month: number;
   employees: Employee[];
-  records: AttendanceRecord[];
+  records?: AttendanceRecord[];
+  /** Đăng ký OT: employeeName|date → value */
+  entries?: { employeeName: string; date: string; value: string }[];
   columnColors?: ColumnColors;
+  title?: string;
+  hoursLabel?: string;
+  footerLabel?: string;
+  noteHours?: string;
+  editable?: boolean;
+  canEditName?: (name: string) => boolean;
+  onCommit?: (employeeName: string, date: string, raw: string) => Promise<void> | void;
 }) {
   const lastDay = daysInMonth(year, month);
   const days = Array.from({ length: lastDay }, (_, i) => i + 1);
   const mm = String(month).padStart(2, "0");
+  const heading = title || `Lịch chấm công — Tháng ${month}/${year}`;
 
   const byEmpDate = new Map<string, AttendanceRecord>();
-  for (const r of records) {
+  for (const r of records || []) {
     byEmpDate.set(`${r.employeeName}|${r.date}`, r);
   }
+  const byEntry = new Map<string, string>();
+  for (const e of entries || []) {
+    byEntry.set(`${e.employeeName}|${e.date}`, e.value);
+  }
+  const useEntries = Boolean(entries);
 
   const rows = employees.map((emp, index) => {
     const cells: CellValue[] = days.map((day) => {
       const date = `${year}-${mm}-${String(day).padStart(2, "0")}`;
-      return cellFromRecord(byEmpDate.get(`${emp.name}|${date}`));
+      const key = `${emp.name}|${date}`;
+      return useEntries
+        ? cellFromEntry(byEntry.get(key))
+        : cellFromRecord(byEmpDate.get(key));
     });
     const total = cells.reduce<number>(
       (sum, v) => (typeof v === "number" ? sum + v : sum),
@@ -73,6 +110,39 @@ export function MonthGrid({
     color: contrastText(columnColors.total),
   };
 
+  const [editing, setEditing] = useState<{ name: string; day: number } | null>(null);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  const startEdit = (empName: string, day: number, current: CellValue) => {
+    if (!editable) return;
+    if (canEditName && !canEditName(empName)) return;
+    setEditing({ name: empName, day });
+    setDraft(current === undefined ? "" : String(current));
+  };
+
+  const commitEdit = async () => {
+    if (!editing || !onCommit) {
+      setEditing(null);
+      return;
+    }
+    const date = `${year}-${mm}-${String(editing.day).padStart(2, "0")}`;
+    setSaving(true);
+    try {
+      await onCommit(editing.name, date, draft);
+      setEditing(null);
+    } catch {
+      /* giữ ô đang sửa khi lưu lỗi */
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-3">
       <div className="-mx-4 overflow-x-auto px-4 sm:-mx-6 sm:px-6">
@@ -80,7 +150,7 @@ export function MonthGrid({
           <thead>
             <tr>
               <th className={cn(th, "min-w-[220px] bg-white text-left")} colSpan={4}>
-                Lịch chấm công — Tháng {month}/{year}
+                {heading}
               </th>
               {days.map((day) => {
                 const bg = weekdayFill(columnColors, year, month, day);
@@ -120,7 +190,7 @@ export function MonthGrid({
                 );
               })}
               <th className={cn(th, "w-16 min-w-[56px]")} style={totalStyle}>
-                Giờ
+                {hoursLabel}
               </th>
             </tr>
           </thead>
@@ -154,16 +224,49 @@ export function MonthGrid({
                   const bg = leave
                     ? "#000000"
                     : weekdayFill(columnColors, year, month, day);
+                  const isEditing =
+                    editing?.name === emp.name && editing.day === day;
+                  const allow =
+                    editable && (!canEditName || canEditName(emp.name));
                   return (
                     <td
                       key={`${emp.name}-${day}`}
-                      className={cn(td, "tabular-nums", leave && "font-bold")}
+                      className={cn(
+                        td,
+                        "tabular-nums",
+                        leave && "font-bold",
+                        allow && "cursor-pointer hover:ring-1 hover:ring-primary"
+                      )}
                       style={{
                         backgroundColor: bg,
                         color: leave ? "#ffffff" : contrastText(bg),
                       }}
+                      onClick={() => startEdit(emp.name, day, value)}
                     >
-                      {value === undefined ? "" : value}
+                      {isEditing ? (
+                        <input
+                          ref={inputRef}
+                          aria-label={`OT ${emp.name} ngày ${day}`}
+                          value={draft}
+                          disabled={saving}
+                          onChange={(e) => setDraft(e.target.value)}
+                          onBlur={() => void commitEdit()}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.currentTarget.blur();
+                            }
+                            if (e.key === "Escape") {
+                              setEditing(null);
+                            }
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          className="h-6 w-full bg-white px-0.5 text-center text-[11px] text-black outline-none"
+                        />
+                      ) : value === undefined ? (
+                        ""
+                      ) : (
+                        formatOtDisplay(value)
+                      )}
                     </td>
                   );
                 })}
@@ -177,7 +280,7 @@ export function MonthGrid({
             ))}
             <tr>
               <td className={cn(td, "font-bold")} colSpan={4}>
-                Tổng người có mặt
+                {footerLabel}
               </td>
               {days.map((day) => {
                 const count = rows.filter(
@@ -217,7 +320,7 @@ export function MonthGrid({
         <p>
           <span className="font-bold text-red-600">/</span> {"-->"} Nghỉ
         </p>
-        <p className="mt-1 text-neutral-600">Số = số giờ làm (vào → ra)</p>
+        <p className="mt-1 text-neutral-600">{noteHours}</p>
       </div>
     </div>
   );

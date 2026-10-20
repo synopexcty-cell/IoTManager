@@ -15,6 +15,8 @@ const ALLOWED: SheetsAction[] = [
   "checkIn",
   "checkOut",
   "saveAttendance",
+  "listOt",
+  "saveOt",
   "addEmployee",
   "importEmployees",
   "updateEmployee",

@@ -11,7 +11,7 @@ interface BottomNavProps {
 
 export function BottomNav({ isAdmin }: BottomNavProps) {
   const pathname = usePathname();
-  const items = getNavItems(isAdmin).slice(0, 5);
+  const items = getNavItems(isAdmin);
 
   return (
     <nav

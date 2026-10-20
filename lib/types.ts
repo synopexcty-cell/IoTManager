@@ -33,6 +33,14 @@ export interface AttendanceRecord {
   note: string;
 }
 
+export interface OtRecord {
+  employeeName: string;
+  date: string; // yyyy-MM-dd
+  /** "1.5" | "P" | "/" */
+  value: string;
+  updatedAt: string;
+}
+
 export interface AuthUser {
   name: string;
   role: Role;
@@ -59,6 +67,8 @@ export type SheetsAction =
   | "checkIn"
   | "checkOut"
   | "saveAttendance"
+  | "listOt"
+  | "saveOt"
   | "addEmployee"
   | "importEmployees"
   | "updateEmployee"
