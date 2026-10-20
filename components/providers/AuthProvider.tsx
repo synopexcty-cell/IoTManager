@@ -1,6 +1,11 @@
 "use client";
 
-import { clearStoredUser, getStoredUser, setStoredUser } from "@/lib/auth";
+import {
+  clearPendingPin,
+  clearStoredUser,
+  getStoredUser,
+  setStoredUser,
+} from "@/lib/auth";
 import type { AuthUser } from "@/lib/types";
 import {
   createContext,
@@ -15,6 +20,7 @@ interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
   login: (user: AuthUser) => void;
+  updateUser: (user: AuthUser) => void;
   logout: () => void;
 }
 
@@ -40,14 +46,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(u);
   }, []);
 
+  const updateUser = useCallback((u: AuthUser) => {
+    setStoredUser(u);
+    setUser(u);
+  }, []);
+
   const logout = useCallback(() => {
+    clearPendingPin();
     clearStoredUser();
     setUser(null);
   }, []);
 
   const value = useMemo(
-    () => ({ user, loading, login, logout }),
-    [user, loading, login, logout]
+    () => ({ user, loading, login, updateUser, logout }),
+    [user, loading, login, updateUser, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

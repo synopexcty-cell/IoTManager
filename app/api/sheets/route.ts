@@ -15,9 +15,11 @@ const ALLOWED: SheetsAction[] = [
   "checkIn",
   "checkOut",
   "addEmployee",
+  "importEmployees",
   "updateEmployee",
   "deleteEmployee",
   "deactivateEmployee",
+  "changePassword",
 ];
 
 /** Trạng thái + warm Mongo connection */

@@ -1,65 +1,60 @@
 "use client";
 
+import { MonthGrid } from "@/components/attendance/MonthGrid";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { Button } from "@/components/ui/Button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Card, CardContent } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Input } from "@/components/ui/Input";
 import { TableSkeleton } from "@/components/ui/Skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/Table";
 import { listAttendance, listEmployees } from "@/lib/sheets";
-import type { AttendanceRecord } from "@/lib/types";
-import { addDaysISO, formatShortDate, statusLabel, todayISO } from "@/lib/utils";
-import { Download, Inbox } from "lucide-react";
+import type { AttendanceRecord, Employee } from "@/lib/types";
+import { monthRange, todayISO } from "@/lib/utils";
+import { ChevronLeft, ChevronRight, Download, Inbox } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 export default function HistoryPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  const today = todayISO();
+  const [year, setYear] = useState(() => Number(today.slice(0, 4)));
+  const [month, setMonth] = useState(() => Number(today.slice(5, 7)));
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
-  const [names, setNames] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [from, setFrom] = useState(() => addDaysISO(todayISO(), -30));
-  const [to, setTo] = useState(todayISO());
-  const [nameFilter, setNameFilter] = useState("");
+
+  const { from, to } = useMemo(() => monthRange(year, month), [year, month]);
+
+  const shiftMonth = (delta: number) => {
+    const d = new Date(year, month - 1 + delta, 1);
+    setYear(d.getFullYear());
+    setMonth(d.getMonth() + 1);
+  };
 
   const load = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
-      const filters: { name?: string; from?: string; to?: string } = {
-        from,
-        to,
-      };
-      if (isAdmin) {
-        if (nameFilter) filters.name = nameFilter;
-      } else {
-        filters.name = user.name;
-      }
-      const data = await listAttendance(filters);
-      setRecords(data);
+      const [emps, att] = await Promise.all([
+        listEmployees(),
+        listAttendance({
+          from,
+          to,
+          name: isAdmin ? undefined : user.name,
+        }),
+      ]);
+      const list = isAdmin
+        ? emps.filter((e) => e.active)
+        : emps.filter((e) => e.name === user.name);
+      setEmployees(list);
+      setRecords(att);
     } finally {
       setLoading(false);
     }
-  }, [user, from, to, nameFilter, isAdmin]);
+  }, [user, from, to, isAdmin]);
 
   useEffect(() => {
     load();
   }, [load]);
-
-  useEffect(() => {
-    if (!isAdmin) return;
-    listEmployees().then((emps) =>
-      setNames(emps.filter((e) => e.active).map((e) => e.name))
-    );
-  }, [isAdmin]);
 
   const exportCsv = () => {
     const header = [
@@ -72,76 +67,58 @@ export default function HistoryPage() {
       "Note",
     ];
     const rows = records.map((r) =>
-      [
-        r.timestamp,
-        r.employeeName,
-        r.date,
-        r.checkIn,
-        r.checkOut,
-        r.status,
-        r.note,
-      ]
+      [r.timestamp, r.employeeName, r.date, r.checkIn, r.checkOut, r.status, r.note]
         .map((c) => `"${String(c).replace(/"/g, '""')}"`)
         .join(",")
     );
     const csv = [header.join(","), ...rows].join("\n");
-    const blob = new Blob(["\uFEFF" + csv], {
-      type: "text/csv;charset=utf-8;",
-    });
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `chamcong_${from}_${to}.csv`;
+    a.download = `chamcong_${year}-${String(month).padStart(2, "0")}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
-  const title = useMemo(
-    () => (isAdmin ? "Tất cả bản ghi" : "Lịch sử của tôi"),
-    [isAdmin]
-  );
-
   return (
     <div className="space-y-4">
       <Card>
-        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:flex-wrap sm:items-end">
-          <Input
-            label="Từ ngày"
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-            className="sm:w-40"
-          />
-          <Input
-            label="Đến ngày"
-            type="date"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            className="sm:w-40"
-          />
-          {isAdmin && (
-            <div className="flex w-full flex-col gap-1.5 sm:w-48">
-              <label
-                htmlFor="filter-name"
-                className="text-sm font-medium text-neutral-800"
-              >
-                Nhân viên
-              </label>
-              <select
-                id="filter-name"
-                value={nameFilter}
-                onChange={(e) => setNameFilter(e.target.value)}
-                className="h-11 min-h-[44px] w-full rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-              >
-                <option value="">Tất cả</option>
-                {names.map((n) => (
-                  <option key={n} value={n}>
-                    {n}
+        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => shiftMonth(-1)} aria-label="Tháng trước">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <select
+              aria-label="Tháng"
+              value={month}
+              onChange={(e) => setMonth(Number(e.target.value))}
+              className="h-11 min-h-[44px] rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                <option key={m} value={m}>
+                  Tháng {m}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Năm"
+              value={year}
+              onChange={(e) => setYear(Number(e.target.value))}
+              className="h-11 min-h-[44px] rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              {Array.from({ length: 6 }, (_, i) => Number(today.slice(0, 4)) - 2 + i).map(
+                (y) => (
+                  <option key={y} value={y}>
+                    {y}
                   </option>
-                ))}
-              </select>
-            </div>
-          )}
+                )
+              )}
+            </select>
+            <Button variant="outline" size="sm" onClick={() => shiftMonth(1)} aria-label="Tháng sau">
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
           {isAdmin && (
             <Button
               variant="outline"
@@ -158,96 +135,19 @@ export default function HistoryPage() {
 
       {loading ? (
         <TableSkeleton />
-      ) : records.length === 0 ? (
+      ) : employees.length === 0 ? (
         <EmptyState
           icon={Inbox}
-          title="Không có dữ liệu"
-          description="Thử đổi khoảng ngày hoặc bộ lọc tên."
+          title="Không có nhân viên"
+          description="Thêm nhân viên rồi chấm công để hiện bảng tháng."
         />
       ) : (
-        <>
-          {/* Desktop table */}
-          <Card className="hidden overflow-hidden md:block">
-            <CardHeader className="border-b border-neutral-100 pb-4">
-              <CardTitle>
-                {title}{" "}
-                <span className="font-normal text-neutral-400">
-                  ({records.length})
-                </span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    {isAdmin && <TableHead>Nhân viên</TableHead>}
-                    <TableHead>Ngày</TableHead>
-                    <TableHead>Vào</TableHead>
-                    <TableHead>Ra</TableHead>
-                    <TableHead>Trạng thái</TableHead>
-                    <TableHead>Ghi chú</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {records.map((r) => (
-                    <TableRow key={`${r.date}-${r.employeeName}-${r.timestamp}`}>
-                      {isAdmin && (
-                        <TableCell className="font-medium">
-                          {r.employeeName}
-                        </TableCell>
-                      )}
-                      <TableCell>{formatShortDate(r.date)}</TableCell>
-                      <TableCell className="tabular-nums">
-                        {r.checkIn || "—"}
-                      </TableCell>
-                      <TableCell className="tabular-nums">
-                        {r.checkOut || "—"}
-                      </TableCell>
-                      <TableCell>{statusLabel(r.status)}</TableCell>
-                      <TableCell className="max-w-[160px] truncate text-neutral-500">
-                        {r.note || "—"}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-
-          {/* Mobile card list */}
-          <div className="space-y-3 md:hidden">
-            <p className="text-sm text-neutral-500">
-              {title} ({records.length})
-            </p>
-            {records.map((r) => (
-              <Card
-                key={`${r.date}-${r.employeeName}-${r.timestamp}-m`}
-                className="p-4"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    {isAdmin && (
-                      <p className="font-medium text-black">{r.employeeName}</p>
-                    )}
-                    <p className="text-sm text-neutral-600">
-                      {formatShortDate(r.date)}
-                    </p>
-                  </div>
-                  <span className="rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs font-medium text-neutral-700">
-                    {statusLabel(r.status)}
-                  </span>
-                </div>
-                <div className="mt-3 flex gap-4 text-sm tabular-nums text-neutral-800">
-                  <span>Vào: {r.checkIn || "—"}</span>
-                  <span>Ra: {r.checkOut || "—"}</span>
-                </div>
-                {r.note && (
-                  <p className="mt-2 text-xs text-neutral-500">{r.note}</p>
-                )}
-              </Card>
-            ))}
-          </div>
-        </>
+        <MonthGrid
+          year={year}
+          month={month}
+          employees={employees}
+          records={records}
+        />
       )}
     </div>
   );

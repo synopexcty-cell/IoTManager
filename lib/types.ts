@@ -13,6 +13,10 @@ export interface Employee {
   phone: string;
   cccd: string;
   address: string;
+  team?: string;
+  shift?: string;
+  /** true = lần đầu / mật khẩu tạm, bắt đổi khi đăng nhập */
+  mustChangePassword?: boolean;
 }
 
 export interface AttendanceRecord {
@@ -28,6 +32,8 @@ export interface AttendanceRecord {
 export interface AuthUser {
   name: string;
   role: Role;
+  employeeCode?: string;
+  mustChangePassword?: boolean;
 }
 
 export type SheetsAction =
@@ -36,10 +42,12 @@ export type SheetsAction =
   | "checkIn"
   | "checkOut"
   | "addEmployee"
+  | "importEmployees"
   | "updateEmployee"
   | "deleteEmployee"
   | "deactivateEmployee"
-  | "verifyPin";
+  | "verifyPin"
+  | "changePassword";
 
 export interface SheetsRequest {
   action: SheetsAction;

@@ -6,7 +6,7 @@
 
 - Next.js 14 (App Router) + TypeScript + Tailwind CSS
 - MongoDB Atlas (collections `employees`, `attendance`)
-- Auth: chọn tên + PIN 4–6 số
+- Auth: mã nhân viên + mật khẩu 4–8 số
 - Offline queue trong `localStorage` khi mất mạng
 
 ## Quick start

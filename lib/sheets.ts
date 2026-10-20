@@ -122,10 +122,31 @@ export async function listAttendance(
   return data;
 }
 
-export async function verifyPin(name: string, pin: string) {
-  return callSheets<{ name: string; role: "employee" | "admin" }>({
+export async function verifyPin(employeeCode: string, pin: string) {
+  return callSheets<{
+    name: string;
+    role: "employee" | "admin";
+    employeeCode: string;
+    mustChangePassword: boolean;
+  }>({
     action: "verifyPin",
-    payload: { name, pin },
+    payload: { employeeCode, pin },
+  });
+}
+
+export async function changePassword(
+  employeeCode: string,
+  currentPin: string,
+  newPin: string
+) {
+  return callSheets<{
+    name: string;
+    role: "employee" | "admin";
+    employeeCode: string;
+    mustChangePassword: boolean;
+  }>({
+    action: "changePassword",
+    payload: { employeeCode, currentPin, newPin },
   });
 }
 
@@ -155,6 +176,8 @@ export async function addEmployee(payload: {
   phone?: string;
   cccd?: string;
   address?: string;
+  team?: string;
+  shift?: string;
 }) {
   const res = await callSheets<Employee>(
     {
@@ -164,11 +187,38 @@ export async function addEmployee(payload: {
         phone: "",
         cccd: "",
         address: "",
+        team: "",
+        shift: "",
         ...payload,
       },
     },
     { queueOnFail: true }
   );
+  if (res.ok) clientCacheInvalidateEmployees();
+  return res;
+}
+
+export async function importEmployees(
+  rows: Array<{
+    name: string;
+    pin: string;
+    role?: "employee" | "admin";
+    employeeCode: string;
+    phone?: string;
+    cccd?: string;
+    address?: string;
+    team?: string;
+    shift?: string;
+  }>
+) {
+  const res = await callSheets<{
+    inserted: number;
+    skipped: number;
+    errors: { row: number; message: string }[];
+  }>({
+    action: "importEmployees",
+    payload: { employees: rows },
+  });
   if (res.ok) clientCacheInvalidateEmployees();
   return res;
 }

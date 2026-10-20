@@ -30,8 +30,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (loading) return;
+    if (!user) {
       router.replace("/login");
+      return;
+    }
+    if (user.mustChangePassword) {
+      router.replace("/change-password");
     }
   }, [loading, user, router]);
 

@@ -17,16 +17,22 @@ import {
 } from "@/components/ui/Table";
 import { useToast } from "@/components/ui/Toast";
 import {
+  downloadEmployeeTemplate,
+  parseEmployeeFile,
+  type ImportRow,
+} from "@/lib/employee-import";
+import {
   addEmployee,
   deleteEmployee,
+  importEmployees,
   listEmployees,
   updateEmployee,
 } from "@/lib/sheets";
 import type { Employee, Role } from "@/lib/types";
 import { isValidPin } from "@/lib/utils";
-import { Pencil, Trash2, UserPlus, Users } from "lucide-react";
+import { FileSpreadsheet, Pencil, Trash2, UserPlus, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type ModalMode = "add" | "edit";
 
@@ -53,6 +59,10 @@ export default function EmployeesPage() {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [busyName, setBusyName] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importRows, setImportRows] = useState<ImportRow[]>([]);
+  const [importing, setImporting] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const setField = <K extends keyof typeof emptyForm>(
     key: K,
@@ -118,7 +128,7 @@ export default function EmployeesPage() {
     try {
       if (modalMode === "add") {
         if (!isValidPin(form.pin)) {
-          toast("PIN phải gồm 4–6 chữ số", "error");
+          toast("Mật khẩu phải gồm 4–8 chữ số", "error");
           return;
         }
         const res = await addEmployee({
@@ -141,7 +151,7 @@ export default function EmployeesPage() {
       }
 
       if (form.pin && !isValidPin(form.pin)) {
-        toast("PIN phải gồm 4–6 chữ số (hoặc để trống để giữ PIN cũ)", "error");
+        toast("Mật khẩu phải gồm 4–8 chữ số (hoặc để trống để giữ cũ)", "error");
         return;
       }
 
@@ -165,6 +175,51 @@ export default function EmployeesPage() {
       }
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handlePickFile = async (file?: File | null) => {
+    if (!file) return;
+    try {
+      const rows = await parseEmployeeFile(file);
+      if (rows.length === 0) {
+        toast("Không đọc được dòng nhân viên trong file", "error");
+        return;
+      }
+      setImportRows(rows);
+      setImportOpen(true);
+    } catch {
+      toast("Không đọc được file Excel", "error");
+    } finally {
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const handleImport = async () => {
+    const valid = importRows.filter((r) => !r.error);
+    if (valid.length === 0) {
+      toast("Không có dòng hợp lệ để import", "error");
+      return;
+    }
+    setImporting(true);
+    try {
+      const res = await importEmployees(valid);
+      if (!res.ok || !res.data) {
+        toast(res.error || "Import thất bại", "error");
+        return;
+      }
+      const { inserted, skipped, errors } = res.data;
+      toast(
+        `Đã thêm ${inserted} NV` +
+          (skipped ? `, bỏ qua ${skipped}` : "") +
+          (errors[0] ? `. ${errors[0].message}` : ""),
+        inserted > 0 ? "success" : "error"
+      );
+      setImportOpen(false);
+      setImportRows([]);
+      await load();
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -224,14 +279,31 @@ export default function EmployeesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-neutral-500">
           Quản lý hồ sơ nhân viên (mã NV, SĐT, CCCD, địa chỉ…)
         </p>
-        <Button onClick={openAdd}>
-          <UserPlus className="h-4 w-4" />
-          Thêm
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            className="hidden"
+            onChange={(e) => handlePickFile(e.target.files?.[0])}
+          />
+          <Button variant="outline" onClick={downloadEmployeeTemplate}>
+            <FileSpreadsheet className="h-4 w-4" />
+            Tải mẫu Excel
+          </Button>
+          <Button variant="outline" onClick={() => fileRef.current?.click()}>
+            <FileSpreadsheet className="h-4 w-4" />
+            Import Excel
+          </Button>
+          <Button onClick={openAdd}>
+            <UserPlus className="h-4 w-4" />
+            Thêm
+          </Button>
+        </div>
       </div>
 
       {loading ? (
@@ -242,10 +314,16 @@ export default function EmployeesPage() {
           title="Chưa có nhân viên"
           description="Thêm nhân viên đầu tiên để bắt đầu."
           action={
-            <Button onClick={openAdd}>
-              <UserPlus className="h-4 w-4" />
-              Thêm nhân viên
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => fileRef.current?.click()}>
+                <FileSpreadsheet className="h-4 w-4" />
+                Import Excel
+              </Button>
+              <Button onClick={openAdd}>
+                <UserPlus className="h-4 w-4" />
+                Thêm nhân viên
+              </Button>
+            </div>
           }
         />
       ) : (
@@ -383,15 +461,15 @@ export default function EmployeesPage() {
           <Input
             label={
               modalMode === "add"
-                ? "PIN (4–6 số)"
-                : "PIN mới (để trống = giữ PIN cũ)"
+                ? "Mật khẩu (4–8 số)"
+                : "Mật khẩu mới (để trống = giữ cũ)"
             }
             type="password"
             inputMode="numeric"
-            maxLength={6}
+            maxLength={8}
             value={form.pin}
             onChange={(e) =>
-              setField("pin", e.target.value.replace(/\D/g, "").slice(0, 6))
+              setField("pin", e.target.value.replace(/\D/g, "").slice(0, 8))
             }
             required={modalMode === "add"}
             placeholder="••••"
@@ -466,6 +544,66 @@ export default function EmployeesPage() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        open={importOpen}
+        onClose={() => !importing && setImportOpen(false)}
+        title="Import nhân viên từ Excel"
+        className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"
+      >
+        <p className="mb-3 text-sm text-neutral-500">
+          {importRows.filter((r) => !r.error).length} dòng hợp lệ /{" "}
+          {importRows.length} dòng. PIN trống sẽ mặc định{" "}
+          <span className="font-medium text-black">1234</span>. Trùng mã NV hoặc
+          họ tên sẽ bỏ qua.
+        </p>
+        <div className="mb-4 max-h-64 overflow-auto rounded-lg border border-neutral-200">
+          <table className="w-full text-left text-sm">
+            <thead className="sticky top-0 bg-neutral-50">
+              <tr>
+                <th className="px-2 py-2">Mã</th>
+                <th className="px-2 py-2">Họ tên</th>
+                <th className="px-2 py-2">PIN</th>
+                <th className="px-2 py-2">Team</th>
+                <th className="px-2 py-2">Ghi chú</th>
+              </tr>
+            </thead>
+            <tbody>
+              {importRows.map((r, i) => (
+                <tr
+                  key={`${r.employeeCode}-${i}`}
+                  className={r.error ? "bg-red-50 text-red-700" : ""}
+                >
+                  <td className="px-2 py-1.5 tabular-nums">{r.employeeCode}</td>
+                  <td className="px-2 py-1.5">{r.name}</td>
+                  <td className="px-2 py-1.5 tabular-nums">{r.pin}</td>
+                  <td className="px-2 py-1.5">{r.team || "—"}</td>
+                  <td className="px-2 py-1.5 text-xs">{r.error || "OK"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="flex-1"
+            onClick={() => setImportOpen(false)}
+            disabled={importing}
+          >
+            Hủy
+          </Button>
+          <Button
+            className="flex-1"
+            loading={importing}
+            onClick={handleImport}
+            disabled={importRows.every((r) => r.error)}
+          >
+            Import {importRows.filter((r) => !r.error).length} dòng
+          </Button>
+        </div>
       </Modal>
     </div>
   );

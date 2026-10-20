@@ -1,6 +1,31 @@
 import type { AuthUser } from "./types";
 
 const AUTH_KEY = "chamcong_user";
+const PENDING_PIN_KEY = "chamcong_pending_pin";
+
+export function setPendingPin(pin: string): void {
+  try {
+    sessionStorage.setItem(PENDING_PIN_KEY, pin);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function getPendingPin(): string {
+  try {
+    return sessionStorage.getItem(PENDING_PIN_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+export function clearPendingPin(): void {
+  try {
+    sessionStorage.removeItem(PENDING_PIN_KEY);
+  } catch {
+    /* ignore */
+  }
+}
 
 export function getStoredUser(): AuthUser | null {
   if (typeof window === "undefined") return null;
