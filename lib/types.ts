@@ -8,6 +8,11 @@ export interface Employee {
   pin?: string;
   role: Role;
   active: boolean;
+  /** Mã nhân viên (unique) */
+  employeeCode: string;
+  phone: string;
+  cccd: string;
+  address: string;
 }
 
 export interface AttendanceRecord {
@@ -31,6 +36,8 @@ export type SheetsAction =
   | "checkIn"
   | "checkOut"
   | "addEmployee"
+  | "updateEmployee"
+  | "deleteEmployee"
   | "deactivateEmployee"
   | "verifyPin";
 

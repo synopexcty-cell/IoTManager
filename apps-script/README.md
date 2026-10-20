@@ -11,13 +11,15 @@
 4. Add a second sheet named **Employees**.
 5. Row 1 headers:
 
-   `Name | PIN | Role | Active`
+   `Name | PIN | Role | Active | EmployeeCode | Phone | CCCD | Address`
 
 6. Seed at least one admin, for example:
 
-   | Name          | PIN  | Role  | Active |
-   |---------------|------|-------|--------|
-   | Nguyễn Văn An | 1234 | admin | TRUE   |
+   | Name | PIN | Role | Active | EmployeeCode | Phone | CCCD | Address |
+   |------|-----|------|--------|--------------|-------|------|---------|
+   | Nguyễn Văn An | 1234 | admin | TRUE | NV001 | 0901234567 | 079085001234 | Quận 1, TP.HCM |
+
+   Nếu sheet cũ chỉ có 4 cột đầu: thêm 4 cột còn lại vào hàng header rồi **New deployment** Apps Script.
 
 ## 2. Attach Apps Script
 

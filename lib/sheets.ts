@@ -132,13 +132,50 @@ export async function checkOut(name: string) {
   );
 }
 
-export async function addEmployee(
-  name: string,
-  pin: string,
-  role: "employee" | "admin" = "employee"
-) {
+export async function addEmployee(payload: {
+  name: string;
+  pin: string;
+  role?: "employee" | "admin";
+  employeeCode: string;
+  phone?: string;
+  cccd?: string;
+  address?: string;
+}) {
   return callSheets<Employee>(
-    { action: "addEmployee", payload: { name, pin, role } },
+    {
+      action: "addEmployee",
+      payload: {
+        role: "employee",
+        phone: "",
+        cccd: "",
+        address: "",
+        ...payload,
+      },
+    },
+    { queueOnFail: true }
+  );
+}
+
+export async function updateEmployee(payload: {
+  originalName: string;
+  name: string;
+  pin?: string;
+  role: "employee" | "admin";
+  active: boolean;
+  employeeCode: string;
+  phone?: string;
+  cccd?: string;
+  address?: string;
+}) {
+  return callSheets<Employee>(
+    { action: "updateEmployee", payload },
+    { queueOnFail: true }
+  );
+}
+
+export async function deleteEmployee(name: string) {
+  return callSheets<{ name: string }>(
+    { action: "deleteEmployee", payload: { name } },
     { queueOnFail: true }
   );
 }

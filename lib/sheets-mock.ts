@@ -89,18 +89,86 @@ export async function mockHandler<T>(
       return { ok: true, data: existing as T };
     }
     case "addEmployee": {
-      const name = (payload.name as string)?.trim();
-      const pin = (payload.pin as string)?.trim();
-      const role = (payload.role as Employee["role"]) || "employee";
-      if (!name || !pin || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
-        return { ok: false, error: "Tên và PIN 4 số là bắt buộc" };
+      const profile = parseProfile_(payload);
+      if (!profile.ok) return { ok: false, error: profile.error };
+      const { name, pin, role, employeeCode, phone, cccd, address } =
+        profile.data;
+      if (!pin || !/^\d{4}$/.test(pin)) {
+        return { ok: false, error: "Tên, mã NV và PIN 4 số là bắt buộc" };
       }
       if (mockEmployees.some((e) => e.name === name)) {
-        return { ok: false, error: "Nhân viên đã tồn tại" };
+        return { ok: false, error: "Họ tên đã tồn tại" };
       }
-      const emp: Employee = { name, pin, role, active: true };
+      if (mockEmployees.some((e) => e.employeeCode === employeeCode)) {
+        return { ok: false, error: "Mã nhân viên đã tồn tại" };
+      }
+      const emp: Employee = {
+        name,
+        pin,
+        role,
+        active: true,
+        employeeCode,
+        phone,
+        cccd,
+        address,
+      };
       mockEmployees.push(emp);
       return { ok: true, data: publicEmployee(emp) as T };
+    }
+    case "updateEmployee": {
+      const originalName = String(payload.originalName || "").trim();
+      const profile = parseProfile_(payload);
+      if (!profile.ok) return { ok: false, error: profile.error };
+      const { name, pin: pinRaw, role, employeeCode, phone, cccd, address } =
+        profile.data;
+      const active =
+        payload.active !== false && String(payload.active) !== "false";
+      if (!originalName) {
+        return { ok: false, error: "Thiếu tên nhân viên gốc" };
+      }
+      if (pinRaw && !/^\d{4}$/.test(pinRaw)) {
+        return { ok: false, error: "PIN phải gồm 4 chữ số" };
+      }
+      const idx = mockEmployees.findIndex((e) => e.name === originalName);
+      if (idx < 0) return { ok: false, error: "Không tìm thấy nhân viên" };
+      if (
+        name !== originalName &&
+        mockEmployees.some((e) => e.name === name)
+      ) {
+        return { ok: false, error: "Họ tên đã tồn tại" };
+      }
+      if (
+        mockEmployees.some(
+          (e, i) => i !== idx && e.employeeCode === employeeCode
+        )
+      ) {
+        return { ok: false, error: "Mã nhân viên đã tồn tại" };
+      }
+      const prev = mockEmployees[idx];
+      const emp: Employee = {
+        name,
+        pin: pinRaw || prev.pin || "",
+        role,
+        active: Boolean(active),
+        employeeCode,
+        phone,
+        cccd,
+        address,
+      };
+      mockEmployees[idx] = emp;
+      if (name !== originalName) {
+        for (const rec of mockAttendance) {
+          if (rec.employeeName === originalName) rec.employeeName = name;
+        }
+      }
+      return { ok: true, data: publicEmployee(emp) as T };
+    }
+    case "deleteEmployee": {
+      const name = payload.name as string;
+      const idx = mockEmployees.findIndex((e) => e.name === name);
+      if (idx < 0) return { ok: false, error: "Không tìm thấy nhân viên" };
+      mockEmployees.splice(idx, 1);
+      return { ok: true, data: { name } as T };
     }
     case "deactivateEmployee": {
       const name = payload.name as string;
@@ -114,10 +182,44 @@ export async function mockHandler<T>(
   }
 }
 
+function parseProfile_(payload: Record<string, unknown>):
+  | {
+      ok: true;
+      data: {
+        name: string;
+        pin: string;
+        role: Employee["role"];
+        employeeCode: string;
+        phone: string;
+        cccd: string;
+        address: string;
+      };
+    }
+  | { ok: false; error: string } {
+  const name = String(payload.name || "").trim();
+  const pin = String(payload.pin ?? "").trim();
+  const role = (payload.role as Employee["role"]) || "employee";
+  const employeeCode = String(payload.employeeCode || "").trim();
+  const phone = String(payload.phone || "").trim();
+  const cccd = String(payload.cccd || "").trim();
+  const address = String(payload.address || "").trim();
+  if (!name || !employeeCode) {
+    return { ok: false, error: "Họ tên và mã nhân viên là bắt buộc" };
+  }
+  return {
+    ok: true,
+    data: { name, pin, role, employeeCode, phone, cccd, address },
+  };
+}
+
 function publicEmployee(emp: Employee) {
   return {
     name: emp.name,
     role: emp.role,
     active: emp.active,
+    employeeCode: emp.employeeCode || "",
+    phone: emp.phone || "",
+    cccd: emp.cccd || "",
+    address: emp.address || "",
   };
 }

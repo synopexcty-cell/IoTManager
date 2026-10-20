@@ -9,6 +9,8 @@ const ALLOWED: SheetsAction[] = [
   "checkIn",
   "checkOut",
   "addEmployee",
+  "updateEmployee",
+  "deleteEmployee",
   "deactivateEmployee",
 ];
 

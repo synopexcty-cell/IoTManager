@@ -1,11 +1,56 @@
 import type { AttendanceRecord, Employee } from "./types";
 
 export const MOCK_EMPLOYEES: Employee[] = [
-  { name: "Nguyễn Văn An", pin: "1234", role: "admin", active: true },
-  { name: "Trần Thị Bình", pin: "2345", role: "employee", active: true },
-  { name: "Lê Minh Châu", pin: "3456", role: "employee", active: true },
-  { name: "Phạm Quốc Dũng", pin: "4567", role: "employee", active: true },
-  { name: "Hoàng Thị Em", pin: "5678", role: "employee", active: false },
+  {
+    name: "Nguyễn Văn An",
+    pin: "1234",
+    role: "admin",
+    active: true,
+    employeeCode: "NV001",
+    phone: "0901234567",
+    cccd: "079085001234",
+    address: "Quận 1, TP.HCM",
+  },
+  {
+    name: "Trần Thị Bình",
+    pin: "2345",
+    role: "employee",
+    active: true,
+    employeeCode: "NV002",
+    phone: "0912345678",
+    cccd: "079090002345",
+    address: "Quận 3, TP.HCM",
+  },
+  {
+    name: "Lê Minh Châu",
+    pin: "3456",
+    role: "employee",
+    active: true,
+    employeeCode: "NV003",
+    phone: "0923456789",
+    cccd: "079092003456",
+    address: "Thủ Đức, TP.HCM",
+  },
+  {
+    name: "Phạm Quốc Dũng",
+    pin: "4567",
+    role: "employee",
+    active: true,
+    employeeCode: "NV004",
+    phone: "0934567890",
+    cccd: "079088004567",
+    address: "Bình Thạnh, TP.HCM",
+  },
+  {
+    name: "Hoàng Thị Em",
+    pin: "5678",
+    role: "employee",
+    active: false,
+    employeeCode: "NV005",
+    phone: "0945678901",
+    cccd: "079095005678",
+    address: "Gò Vấp, TP.HCM",
+  },
 ];
 
 function daysAgo(n: number): string {

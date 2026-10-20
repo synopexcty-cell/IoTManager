@@ -38,7 +38,7 @@ Mở [http://localhost:3000](http://localhost:3000).
 
 **Employees**
 
-| Name | PIN | Role (employee\|admin) | Active |
+| Name | PIN | Role (employee\|admin) | Active | EmployeeCode | Phone | CCCD | Address |
 |------|-----|------------------------|--------|
 
 ### Deploy Apps Script
@@ -79,7 +79,7 @@ npm run build   # kiểm tra local trước khi deploy
 
 ## Bảo mật (tóm tắt)
 
-- PIN không trả về client (`listEmployees` chỉ name/role/active)
+- PIN không trả về client (`listEmployees` trả hồ sơ công khai, không PIN)
 - Apps Script yêu cầu `secret` khớp `API_SECRET`
 - Proxy qua Next.js Route Handler `/api/sheets`
 

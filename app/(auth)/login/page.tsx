@@ -121,6 +121,7 @@ export default function LoginPage() {
                 </option>
                 {employees.map((emp) => (
                   <option key={emp.name} value={emp.name}>
+                    {emp.employeeCode ? `${emp.employeeCode} — ` : ""}
                     {emp.name}
                     {emp.role === "admin" ? " (Admin)" : ""}
                   </option>

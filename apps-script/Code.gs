@@ -2,7 +2,7 @@
  * ChamCong — Google Apps Script Web App
  *
  * Sheet "Attendance": Timestamp | EmployeeName | Date | CheckIn | CheckOut | Status | Note
- * Sheet "Employees":  Name | PIN | Role | Active
+ * Sheet "Employees":  Name | PIN | Role | Active | EmployeeCode | Phone | CCCD | Address
  *
  * Deploy: Deploy → New deployment → Web app
  *   Execute as: Me
@@ -59,6 +59,12 @@ function doPost(e) {
       case "addEmployee":
         result = addEmployee_(payload);
         break;
+      case "updateEmployee":
+        result = updateEmployee_(payload);
+        break;
+      case "deleteEmployee":
+        result = deleteEmployee_(payload);
+        break;
       case "deactivateEmployee":
         result = deactivateEmployee_(payload);
         break;
@@ -96,16 +102,24 @@ function nowTime_() {
   return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "HH:mm");
 }
 
+function publicEmp_(row) {
+  return {
+    name: row.name,
+    role: row.role,
+    active: row.active,
+    employeeCode: row.employeeCode || "",
+    phone: row.phone || "",
+    cccd: row.cccd || "",
+    address: row.address || "",
+  };
+}
+
 /** Public list — không kèm PIN */
 function listEmployees_() {
   var rows = readEmployeesRaw_();
   var data = [];
   for (var i = 0; i < rows.length; i++) {
-    data.push({
-      name: rows[i].name,
-      role: rows[i].role,
-      active: rows[i].active,
-    });
+    data.push(publicEmp_(rows[i]));
   }
   return { ok: true, data: data };
 }
@@ -123,6 +137,10 @@ function readEmployeesRaw_() {
       pin: String(row[1]),
       role: String(row[2] || "employee"),
       active: String(row[3]).toLowerCase() === "true" || row[3] === true,
+      employeeCode: row.length > 4 ? String(row[4] || "") : "",
+      phone: row.length > 5 ? String(row[5] || "") : "",
+      cccd: row.length > 6 ? String(row[6] || "") : "",
+      address: row.length > 7 ? String(row[7] || "") : "",
     });
   }
   return data;
@@ -244,32 +262,140 @@ function addEmployee_(payload) {
   var name = String(payload.name || "").trim();
   var pin = String(payload.pin || "").trim();
   var role = payload.role || "employee";
-  if (!name || !/^\d{4}$/.test(pin)) {
-    return { ok: false, error: "Tên và PIN 4 số là bắt buộc" };
+  var employeeCode = String(payload.employeeCode || "").trim();
+  var phone = String(payload.phone || "").trim();
+  var cccd = String(payload.cccd || "").trim();
+  var address = String(payload.address || "").trim();
+  if (!name || !employeeCode || !/^\d{4}$/.test(pin)) {
+    return { ok: false, error: "Họ tên, mã NV và PIN 4 số là bắt buộc" };
   }
   var list = readEmployeesRaw_();
   for (var i = 0; i < list.length; i++) {
-    if (list[i].name === name) return { ok: false, error: "Nhân viên đã tồn tại" };
+    if (list[i].name === name) return { ok: false, error: "Họ tên đã tồn tại" };
+    if (list[i].employeeCode === employeeCode) {
+      return { ok: false, error: "Mã nhân viên đã tồn tại" };
+    }
   }
-  sheet_(EMPLOYEES_SHEET).appendRow([name, pin, role, true]);
-  return { ok: true, data: { name: name, role: role, active: true } };
+  sheet_(EMPLOYEES_SHEET).appendRow([
+    name,
+    pin,
+    role,
+    true,
+    employeeCode,
+    phone,
+    cccd,
+    address,
+  ]);
+  return {
+    ok: true,
+    data: publicEmp_({
+      name: name,
+      role: role,
+      active: true,
+      employeeCode: employeeCode,
+      phone: phone,
+      cccd: cccd,
+      address: address,
+    }),
+  };
+}
+
+function findEmployeeRow_(name) {
+  var sh = sheet_(EMPLOYEES_SHEET);
+  var values = sh.getDataRange().getValues();
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][0]) === name) return i + 1; // 1-based
+  }
+  return -1;
+}
+
+function renameAttendance_(oldName, newName) {
+  if (oldName === newName) return;
+  var sh = sheet_(ATTENDANCE_SHEET);
+  var values = sh.getDataRange().getValues();
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][1]) === oldName) {
+      sh.getRange(i + 1, 2).setValue(newName);
+    }
+  }
+}
+
+function updateEmployee_(payload) {
+  var originalName = String(payload.originalName || "").trim();
+  var name = String(payload.name || "").trim();
+  var pinRaw = String(payload.pin != null ? payload.pin : "").trim();
+  var role = payload.role || "employee";
+  var employeeCode = String(payload.employeeCode || "").trim();
+  var phone = String(payload.phone || "").trim();
+  var cccd = String(payload.cccd || "").trim();
+  var address = String(payload.address || "").trim();
+  var active = !(
+    payload.active === false ||
+    payload.active === "false" ||
+    payload.active === 0 ||
+    payload.active === "FALSE"
+  );
+
+  if (!originalName || !name || !employeeCode) {
+    return { ok: false, error: "Họ tên và mã nhân viên là bắt buộc" };
+  }
+  if (pinRaw && !/^\d{4}$/.test(pinRaw)) {
+    return { ok: false, error: "PIN phải gồm 4 chữ số" };
+  }
+
+  var row = findEmployeeRow_(originalName);
+  if (row < 0) return { ok: false, error: "Không tìm thấy nhân viên" };
+
+  var list = readEmployeesRaw_();
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].name === originalName) continue;
+    if (list[i].name === name) return { ok: false, error: "Họ tên đã tồn tại" };
+    if (list[i].employeeCode === employeeCode) {
+      return { ok: false, error: "Mã nhân viên đã tồn tại" };
+    }
+  }
+
+  var sh = sheet_(EMPLOYEES_SHEET);
+  var oldPin = String(sh.getRange(row, 2).getValue());
+  var pin = pinRaw || oldPin;
+  sh.getRange(row, 1, row, 8).setValues([
+    [name, pin, role, active, employeeCode, phone, cccd, address],
+  ]);
+  renameAttendance_(originalName, name);
+
+  return {
+    ok: true,
+    data: publicEmp_({
+      name: name,
+      role: role,
+      active: active,
+      employeeCode: employeeCode,
+      phone: phone,
+      cccd: cccd,
+      address: address,
+    }),
+  };
+}
+
+function deleteEmployee_(payload) {
+  var name = String(payload.name || "").trim();
+  if (!name) return { ok: false, error: "Thiếu tên nhân viên" };
+  var row = findEmployeeRow_(name);
+  if (row < 0) return { ok: false, error: "Không tìm thấy nhân viên" };
+  sheet_(EMPLOYEES_SHEET).deleteRow(row);
+  return { ok: true, data: { name: name } };
 }
 
 function deactivateEmployee_(payload) {
   var name = payload.name;
-  var sh = sheet_(EMPLOYEES_SHEET);
-  var values = sh.getDataRange().getValues();
-  for (var i = 1; i < values.length; i++) {
-    if (String(values[i][0]) === name) {
-      sh.getRange(i + 1, 4).setValue(false);
-      return {
-        ok: true,
-        data: {
-          name: name,
-          role: String(values[i][2]),
-          active: false,
-        },
-      };
+  var list = readEmployeesRaw_();
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].name === name) {
+      var row = findEmployeeRow_(name);
+      if (row < 0) break;
+      sheet_(EMPLOYEES_SHEET).getRange(row, 4).setValue(false);
+      list[i].active = false;
+      return { ok: true, data: publicEmp_(list[i]) };
     }
   }
   return { ok: false, error: "Không tìm thấy nhân viên" };
