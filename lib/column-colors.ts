@@ -1,4 +1,5 @@
 import type { AppSettings, ColumnColors } from "./types";
+import { daysInMonth, weekdayOf } from "./utils";
 
 export function monthColorKey(year: number, month: number): string {
   return `${year}-${String(month).padStart(2, "0")}`;
@@ -46,6 +47,17 @@ export function normalizeHexColor(
   return fallback;
 }
 
+function normalizeDays(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== "object") return {};
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    const day = Number(key);
+    if (!Number.isInteger(day) || day < 1 || day > 31) continue;
+    out[String(day)] = normalizeHexColor(value);
+  }
+  return out;
+}
+
 export function normalizeColumnColors(raw: unknown): ColumnColors {
   const src =
     raw && typeof raw === "object" ? (raw as Partial<ColumnColors>) : {};
@@ -55,7 +67,37 @@ export function normalizeColumnColors(raw: unknown): ColumnColors {
       normalizeHexColor(list[i], fallback)
     ),
     total: normalizeHexColor(src.total, DEFAULT_COLUMN_COLORS.total),
+    days: normalizeDays(src.days),
   };
+}
+
+/** Màu một cột ngày: ưu tiên tô từng ngày, không có thì theo thứ */
+export function dayFill(
+  colors: ColumnColors,
+  year: number,
+  month: number,
+  day: number
+): string {
+  const override = colors.days?.[String(day)];
+  if (override) return normalizeHexColor(override);
+  const wd = weekdayOf(year, month, day);
+  return colors.weekdays[wd] || "#ffffff";
+}
+
+/** Đổ màu từng cột từ màu thứ — dùng khi mở bảng cài đặt */
+export function expandDayColors(
+  colors: ColumnColors,
+  year: number,
+  month: number
+): ColumnColors {
+  const base = normalizeColumnColors(colors);
+  const last = daysInMonth(year, month);
+  const days: Record<string, string> = { ...base.days };
+  for (let d = 1; d <= last; d++) {
+    const key = String(d);
+    if (!days[key]) days[key] = dayFill(base, year, month, d);
+  }
+  return { ...base, days };
 }
 
 export function normalizeMonthColors(

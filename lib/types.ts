@@ -49,9 +49,11 @@ export interface AuthUser {
 }
 
 export interface ColumnColors {
-  /** 7 màu: index 0 = CN … 6 = T7 */
+  /** 7 màu: index 0 = CN … 6 = T7 — fallback khi chưa tô từng ngày */
   weekdays: string[];
   total: string;
+  /** Màu từng cột ngày trong tháng, key = "1".."31" */
+  days?: Record<string, string>;
 }
 
 export interface AppSettings {

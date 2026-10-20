@@ -1,5 +1,6 @@
 "use client";
 
+import { MonthGrid } from "@/components/attendance/MonthGrid";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { Button } from "@/components/ui/Button";
 import {
@@ -12,18 +13,17 @@ import {
 import { useToast } from "@/components/ui/Toast";
 import {
   colorsForMonth,
-  contrastText,
   DEFAULT_COLUMN_COLORS,
+  expandDayColors,
   monthColorKey,
   normalizeColumnColors,
   normalizeHexColor,
-  WEEKDAY_LABELS,
   WEEKDAY_SHORT,
 } from "@/lib/column-colors";
 import { getQueue } from "@/lib/offline-queue";
 import { flushOfflineQueue, getSettings, updateSettings } from "@/lib/sheets";
-import type { AppSettings, ColumnColors } from "@/lib/types";
-import { todayISO } from "@/lib/utils";
+import type { AppSettings, ColumnColors, Employee } from "@/lib/types";
+import { daysInMonth, todayISO, weekdayOf } from "@/lib/utils";
 import { AlertTriangle, Database, LogOut, Palette, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -37,6 +37,20 @@ const SWATCHES = [
   "#c6efce",
   "#bdd7ee",
   "#d9d9d9",
+];
+
+const PAINT_SAMPLE: Employee[] = [
+  {
+    name: "Bấm cột ngày để tô",
+    role: "employee",
+    active: true,
+    employeeCode: "",
+    phone: "",
+    cccd: "",
+    address: "",
+    team: "—",
+    shift: "—",
+  },
 ];
 
 export default function SettingsPage() {
@@ -56,6 +70,8 @@ export default function SettingsPage() {
     monthColors: {},
   });
   const [colors, setColors] = useState<ColumnColors>(DEFAULT_COLUMN_COLORS);
+  const [brush, setBrush] = useState("#ed7d31");
+  const [brushDraft, setBrushDraft] = useState("#ed7d31");
   const [savingColors, setSavingColors] = useState(false);
   const [colorsLoaded, setColorsLoaded] = useState(false);
 
@@ -95,21 +111,47 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (!colorsLoaded) return;
-    setColors(colorsForMonth(settings, year, month));
+    setColors(
+      expandDayColors(colorsForMonth(settings, year, month), year, month)
+    );
   }, [year, month, settings, colorsLoaded]);
 
-  const setWeekdayColor = (index: number, hex: string) => {
+  const paintHex = normalizeHexColor(brush, "#ed7d31");
+
+  const paintDay = (day: number) => {
+    setColors((prev) => ({
+      ...prev,
+      days: { ...prev.days, [String(day)]: paintHex },
+    }));
+  };
+
+  const paintWeekday = (wd: number) => {
     setColors((prev) => {
+      const last = daysInMonth(year, month);
+      const days = { ...prev.days };
+      for (let d = 1; d <= last; d++) {
+        if (weekdayOf(year, month, d) === wd) days[String(d)] = paintHex;
+      }
       const weekdays = [...prev.weekdays];
-      weekdays[index] = normalizeHexColor(hex, weekdays[index]);
-      return { ...prev, weekdays };
+      weekdays[wd] = paintHex;
+      return { ...prev, days, weekdays };
     });
+  };
+
+  const paintTotal = () => {
+    setColors((prev) => ({ ...prev, total: paintHex }));
+  };
+
+  const commitBrush = (hex: string) => {
+    const next = normalizeHexColor(hex, paintHex);
+    setBrush(next);
+    setBrushDraft(next);
   };
 
   const handleSaveColors = async () => {
     setSavingColors(true);
     try {
-      const next = normalizeColumnColors(colors);
+      const next = expandDayColors(normalizeColumnColors(colors), year, month);
       const key = monthColorKey(year, month);
       const res = await updateSettings({ columnColors: next, monthKey: key });
       if (!res.ok) {
@@ -130,7 +172,7 @@ export default function SettingsPage() {
   };
 
   const handleResetColors = () => {
-    setColors(DEFAULT_COLUMN_COLORS);
+    setColors(expandDayColors(DEFAULT_COLUMN_COLORS, year, month));
   };
 
   const handleSync = async () => {
@@ -164,7 +206,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4">
+    <div className="mx-auto max-w-6xl space-y-4">
       <Card>
         <CardHeader>
           <CardTitle>Tài khoản</CardTitle>
@@ -192,7 +234,7 @@ export default function SettingsPage() {
               Màu cột lịch tháng
             </CardTitle>
             <CardDescription>
-              Mỗi tháng có bộ màu riêng. Chọn tháng/năm rồi lưu — trang Lịch sử dùng đúng màu của tháng đang xem.
+              Chọn tháng, chọn màu, rồi bấm vào từng cột ngày trên bảng (giống Lịch sử / Lịch OT). T7 tuần này có thể khác T7 tuần kia; lễ chỉ tô đúng ngày đó.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -231,54 +273,85 @@ export default function SettingsPage() {
               </span>
             </div>
 
-            <div className="overflow-x-auto">
-              <div className="flex min-w-max overflow-hidden rounded-lg border border-neutral-200 text-center text-xs font-semibold">
+            <div className="space-y-2 rounded-lg border border-neutral-100 bg-neutral-50 p-3">
+              <p className="text-sm font-medium text-black">Màu đang tô</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="color"
+                  aria-label="Chọn màu tô"
+                  value={paintHex}
+                  disabled={!colorsLoaded}
+                  onChange={(e) => commitBrush(e.target.value)}
+                  className="h-10 w-12 cursor-pointer rounded border border-neutral-200 bg-white p-0.5 disabled:cursor-not-allowed"
+                />
+                <input
+                  type="text"
+                  aria-label="Mã màu tô"
+                  value={brushDraft}
+                  disabled={!colorsLoaded}
+                  maxLength={7}
+                  onChange={(e) => setBrushDraft(e.target.value)}
+                  onBlur={() => commitBrush(brushDraft)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") commitBrush(brushDraft);
+                  }}
+                  className="h-10 w-[6.5rem] rounded-lg border border-neutral-200 bg-white px-2 font-mono text-sm uppercase"
+                />
+                {SWATCHES.map((hex) => (
+                  <button
+                    key={hex}
+                    type="button"
+                    disabled={!colorsLoaded}
+                    title={hex}
+                    onClick={() => commitBrush(hex)}
+                    className={`h-8 w-8 rounded-full border-2 disabled:opacity-50 ${
+                      paintHex === hex
+                        ? "border-black ring-2 ring-primary"
+                        : "border-neutral-300"
+                    }`}
+                    style={{ backgroundColor: hex }}
+                  />
+                ))}
+              </div>
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <span className="text-xs text-neutral-500">Tô hết thứ:</span>
                 {WEEKDAY_SHORT.map((label, i) => (
-                  <div
+                  <Button
                     key={label}
-                    className="w-12 border-r border-neutral-200 py-2 last:border-r-0"
-                    style={{
-                      backgroundColor: colors.weekdays[i],
-                      color: contrastText(colors.weekdays[i]),
-                    }}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={!colorsLoaded}
+                    onClick={() => paintWeekday(i)}
                   >
                     {label}
-                  </div>
+                  </Button>
                 ))}
-                <div
-                  className="w-14 py-2"
-                  style={{
-                    backgroundColor: colors.total,
-                    color: contrastText(colors.total),
-                  }}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!colorsLoaded}
+                  onClick={paintTotal}
                 >
                   Tổng
-                </div>
+                </Button>
               </div>
             </div>
 
-            <div className="space-y-3">
-              {WEEKDAY_LABELS.map((label, i) => (
-                <ColorRow
-                  key={label}
-                  label={`${label} (${WEEKDAY_SHORT[i]})`}
-                  value={colors.weekdays[i]}
-                  disabled={!colorsLoaded}
-                  onChange={(hex) => setWeekdayColor(i, hex)}
-                />
-              ))}
-              <ColorRow
-                label="Cột Tổng"
-                value={colors.total}
-                disabled={!colorsLoaded}
-                onChange={(hex) =>
-                  setColors((prev) => ({
-                    ...prev,
-                    total: normalizeHexColor(hex, prev.total),
-                  }))
-                }
-              />
-            </div>
+            <MonthGrid
+              year={year}
+              month={month}
+              employees={PAINT_SAMPLE}
+              records={[]}
+              columnColors={colors}
+              title={`Màu cột — Tháng ${month}/${year}`}
+              hoursLabel="Giờ"
+              footerLabel="Bấm cột để tô"
+              showNote={false}
+              onPaintDay={paintDay}
+              onPaintTotal={paintTotal}
+            />
 
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button
@@ -366,76 +439,6 @@ export default function SettingsPage() {
         <LogOut className="h-5 w-5" />
         Đăng xuất
       </Button>
-    </div>
-  );
-}
-
-function ColorRow({
-  label,
-  value,
-  disabled,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  disabled?: boolean;
-  onChange: (hex: string) => void;
-}) {
-  const [draft, setDraft] = useState(value);
-
-  useEffect(() => {
-    setDraft(value);
-  }, [value]);
-
-  const commitDraft = () => {
-    const next = normalizeHexColor(draft, value);
-    setDraft(next);
-    onChange(next);
-  };
-
-  return (
-    <div className="flex flex-col gap-2 rounded-lg border border-neutral-100 bg-neutral-50 px-3 py-3 sm:flex-row sm:items-center">
-      <div className="flex min-w-[140px] items-center gap-2">
-        <span
-          className="h-8 w-8 shrink-0 rounded-md border border-neutral-200"
-          style={{ backgroundColor: value }}
-        />
-        <span className="text-sm font-medium text-black">{label}</span>
-      </div>
-      <div className="flex flex-1 flex-wrap items-center gap-2">
-        <input
-          type="color"
-          aria-label={label}
-          value={value}
-          disabled={disabled}
-          onChange={(e) => onChange(e.target.value)}
-          className="h-10 w-12 cursor-pointer rounded border border-neutral-200 bg-white p-0.5 disabled:cursor-not-allowed"
-        />
-        <input
-          type="text"
-          aria-label={`${label} mã màu`}
-          value={draft}
-          disabled={disabled}
-          maxLength={7}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={commitDraft}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") commitDraft();
-          }}
-          className="h-10 w-[6.5rem] rounded-lg border border-neutral-200 bg-white px-2 font-mono text-sm uppercase"
-        />
-        {SWATCHES.map((hex) => (
-          <button
-            key={`${label}-${hex}`}
-            type="button"
-            disabled={disabled}
-            title={hex}
-            onClick={() => onChange(hex)}
-            className="h-7 w-7 rounded-full border border-neutral-300 disabled:opacity-50"
-            style={{ backgroundColor: hex }}
-          />
-        ))}
-      </div>
     </div>
   );
 }

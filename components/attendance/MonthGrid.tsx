@@ -2,6 +2,7 @@
 
 import {
   contrastText,
+  dayFill,
   DEFAULT_COLUMN_COLORS,
   WEEKDAY_SHORT,
 } from "@/lib/column-colors";
@@ -35,8 +36,7 @@ function isLeave(value: CellValue) {
 }
 
 function weekdayFill(colors: ColumnColors, year: number, month: number, day: number) {
-  const wd = weekdayOf(year, month, day);
-  return colors.weekdays[wd] || "#ffffff";
+  return dayFill(colors, year, month, day);
 }
 
 export function MonthGrid({
@@ -50,9 +50,12 @@ export function MonthGrid({
   hoursLabel = "Giờ",
   footerLabel = "Tổng người có mặt",
   noteHours = "Số = số giờ làm (vào → ra)",
+  showNote = true,
   editable = false,
   canEditName,
   onCommit,
+  onPaintDay,
+  onPaintTotal,
 }: {
   year: number;
   month: number;
@@ -65,9 +68,13 @@ export function MonthGrid({
   hoursLabel?: string;
   footerLabel?: string;
   noteHours?: string;
+  showNote?: boolean;
   editable?: boolean;
   canEditName?: (name: string) => boolean;
   onCommit?: (employeeName: string, date: string, raw: string) => Promise<void> | void;
+  /** Cài đặt: bấm cột ngày để tô màu */
+  onPaintDay?: (day: number) => void;
+  onPaintTotal?: () => void;
 }) {
   const lastDay = daysInMonth(year, month);
   const days = Array.from({ length: lastDay }, (_, i) => i + 1);
@@ -157,14 +164,29 @@ export function MonthGrid({
                 return (
                   <th
                     key={`d-${day}`}
-                    className={cn(th, "w-11 min-w-[44px]")}
+                    className={cn(
+                      th,
+                      "w-11 min-w-[44px]",
+                      onPaintDay && "cursor-pointer hover:ring-2 hover:ring-primary"
+                    )}
                     style={{ backgroundColor: bg, color: contrastText(bg) }}
+                    title={onPaintDay ? `Tô ngày ${day}` : undefined}
+                    onClick={onPaintDay ? () => onPaintDay(day) : undefined}
                   >
                     {day}
                   </th>
                 );
               })}
-              <th className={cn(th, "w-16 min-w-[56px]")} style={totalStyle}>
+              <th
+                className={cn(
+                  th,
+                  "w-16 min-w-[56px]",
+                  onPaintTotal && "cursor-pointer hover:ring-2 hover:ring-primary"
+                )}
+                style={totalStyle}
+                title={onPaintTotal ? "Tô cột Tổng" : undefined}
+                onClick={onPaintTotal}
+              >
                 Tổng
               </th>
             </tr>
@@ -182,14 +204,29 @@ export function MonthGrid({
                 return (
                   <th
                     key={`w-${day}`}
-                    className={cn(th, "w-11 min-w-[44px]")}
+                    className={cn(
+                      th,
+                      "w-11 min-w-[44px]",
+                      onPaintDay && "cursor-pointer hover:ring-2 hover:ring-primary"
+                    )}
                     style={{ backgroundColor: bg, color: contrastText(bg) }}
+                    title={onPaintDay ? `Tô ngày ${day}` : undefined}
+                    onClick={onPaintDay ? () => onPaintDay(day) : undefined}
                   >
                     {WEEKDAY_SHORT[weekdayOf(year, month, day)]}
                   </th>
                 );
               })}
-              <th className={cn(th, "w-16 min-w-[56px]")} style={totalStyle}>
+              <th
+                className={cn(
+                  th,
+                  "w-16 min-w-[56px]",
+                  onPaintTotal && "cursor-pointer hover:ring-2 hover:ring-primary"
+                )}
+                style={totalStyle}
+                title={onPaintTotal ? "Tô cột Tổng" : undefined}
+                onClick={onPaintTotal}
+              >
                 {hoursLabel}
               </th>
             </tr>
@@ -235,13 +272,18 @@ export function MonthGrid({
                         td,
                         "tabular-nums",
                         leave && "font-bold",
-                        allow && "cursor-pointer hover:ring-1 hover:ring-primary"
+                        (allow || onPaintDay) &&
+                          "cursor-pointer hover:ring-1 hover:ring-primary"
                       )}
                       style={{
                         backgroundColor: bg,
                         color: leave ? "#ffffff" : contrastText(bg),
                       }}
-                      onClick={() => startEdit(emp.name, day, value)}
+                      title={onPaintDay ? `Tô ngày ${day}` : undefined}
+                      onClick={() => {
+                        if (allow) startEdit(emp.name, day, value);
+                        else onPaintDay?.(day);
+                      }}
                     >
                       {isEditing ? (
                         <input
@@ -271,8 +313,14 @@ export function MonthGrid({
                   );
                 })}
                 <td
-                  className={cn(td, "font-bold tabular-nums")}
+                  className={cn(
+                    td,
+                    "font-bold tabular-nums",
+                    onPaintTotal && "cursor-pointer hover:ring-1 hover:ring-primary"
+                  )}
                   style={totalStyle}
+                  title={onPaintTotal ? "Tô cột Tổng" : undefined}
+                  onClick={onPaintTotal}
                 >
                   {total ? total.toFixed(1) : ""}
                 </td>
@@ -290,16 +338,28 @@ export function MonthGrid({
                 return (
                   <td
                     key={`t-${day}`}
-                    className={cn(td, "font-bold tabular-nums")}
+                    className={cn(
+                      td,
+                      "font-bold tabular-nums",
+                      onPaintDay && "cursor-pointer hover:ring-1 hover:ring-primary"
+                    )}
                     style={{ backgroundColor: bg, color: contrastText(bg) }}
+                    title={onPaintDay ? `Tô ngày ${day}` : undefined}
+                    onClick={onPaintDay ? () => onPaintDay(day) : undefined}
                   >
                     {count || ""}
                   </td>
                 );
               })}
               <td
-                className={cn(td, "font-bold tabular-nums")}
+                className={cn(
+                  td,
+                  "font-bold tabular-nums",
+                  onPaintTotal && "cursor-pointer hover:ring-1 hover:ring-primary"
+                )}
                 style={totalStyle}
+                title={onPaintTotal ? "Tô cột Tổng" : undefined}
+                onClick={onPaintTotal}
               >
                 {rows.reduce(
                   (sum, r) =>
@@ -312,16 +372,18 @@ export function MonthGrid({
         </table>
       </div>
 
-      <div className="w-full max-w-xs rounded border border-red-500 bg-[#dceaf7] px-3 py-2 text-sm">
-        <p className="mb-1 font-bold underline">Note</p>
-        <p>
-          <span className="font-bold text-red-600">P</span> {"-->"} Nghỉ phép
-        </p>
-        <p>
-          <span className="font-bold text-red-600">/</span> {"-->"} Nghỉ
-        </p>
-        <p className="mt-1 text-neutral-600">{noteHours}</p>
-      </div>
+      {showNote && (
+        <div className="w-full max-w-xs rounded border border-red-500 bg-[#dceaf7] px-3 py-2 text-sm">
+          <p className="mb-1 font-bold underline">Note</p>
+          <p>
+            <span className="font-bold text-red-600">P</span> {"-->"} Nghỉ phép
+          </p>
+          <p>
+            <span className="font-bold text-red-600">/</span> {"-->"} Nghỉ
+          </p>
+          <p className="mt-1 text-neutral-600">{noteHours}</p>
+        </div>
+      )}
     </div>
   );
 }
