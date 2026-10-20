@@ -14,13 +14,31 @@ const ALLOWED: SheetsAction[] = [
   "deactivateEmployee",
 ];
 
-/** Status — không lộ URL / secret */
+/** Trạng thái kết nối MongoDB */
 export async function GET() {
-  const { mock, backend } = getDataConfig();
-  return NextResponse.json({ ok: true, mock, backend });
+  const { configured, backend } = getDataConfig();
+  if (!configured) {
+    return NextResponse.json(
+      {
+        ok: false,
+        backend,
+        error: "Chưa cấu hình MONGODB_URI",
+      },
+      { status: 503 }
+    );
+  }
+  return NextResponse.json({ ok: true, backend: "mongo" });
 }
 
 export async function POST(req: Request) {
+  const { configured } = getDataConfig();
+  if (!configured) {
+    return NextResponse.json(
+      { ok: false, error: "Chưa cấu hình MONGODB_URI trên server" },
+      { status: 503 }
+    );
+  }
+
   let body: unknown;
   try {
     body = await req.json();

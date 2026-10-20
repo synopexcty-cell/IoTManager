@@ -6,26 +6,20 @@
 
 - Next.js 14 (App Router) + TypeScript + Tailwind CSS
 - MongoDB Atlas (collections `employees`, `attendance`)
-- Auth đơn giản: chọn tên + PIN 4 số
+- Auth: chọn tên + PIN 4 số
 - Offline queue trong `localStorage` khi mất mạng
 
 ## Quick start
 
 ```bash
 npm install
-cp .env.example .env.local   # điền MONGODB_URI
+cp .env.example .env.local   # điền MONGODB_URI (bắt buộc)
 npm run dev
 ```
 
 Mở [http://localhost:3000](http://localhost:3000).
 
-- **Có** `MONGODB_URI` → dữ liệu trên Atlas. DB trống lần đầu tạo admin `Admin` / PIN `1234`.
-- **Không** có URI → chế độ demo (mock in-memory).
-
-| Tên (demo)     | PIN  | Vai trò   |
-|----------------|------|-----------|
-| Nguyễn Văn An  | 1234 | admin     |
-| Trần Thị Bình  | 2345 | employee  |
+DB trống lần đầu sẽ tạo admin mặc định: **Admin** / PIN **1234** (đổi ngay sau khi đăng nhập).
 
 ## MongoDB
 
@@ -34,49 +28,30 @@ Collections:
 - **employees** — name, pin, role, active, employeeCode, phone, cccd, address
 - **attendance** — timestamp, employeeName, date, checkIn, checkOut, status, note
 
-Env (server-only):
-
 ```env
 MONGODB_URI=mongodb+srv://USER:PASSWORD@cluster.mongodb.net/chamcong?retryWrites=true&w=majority
 ```
 
-Client chỉ gọi `/api/sheets` — URI **không** lộ browser.
+Client chỉ gọi `/api/sheets` — URI không lộ browser. Thiếu `MONGODB_URI` → API trả `503`.
 
 ## Deploy lên Vercel
 
 1. Push repo lên GitHub.
-2. Import project trên [vercel.com](https://vercel.com).
-3. Thêm Environment Variable: `MONGODB_URI` (Production + Preview).
-4. Deploy. Atlas Network Access cần `0.0.0.0/0`.
+2. **Settings → Environment Variables** → thêm `MONGODB_URI` (Production).
+3. Redeploy.
+4. Atlas Network Access: `0.0.0.0/0`.
 
 ```bash
 npm run build
 ```
 
-## Bảo mật (tóm tắt)
+## Bảo mật
 
 - PIN không trả về client
 - `MONGODB_URI` chỉ trên server / Vercel env
-- Proxy qua Next.js Route Handler `/api/sheets`
 
-## Cấu trúc
+## Tính năng
 
-```
-/app
-  /(auth)/login
-  /(app)/dashboard
-  /(app)/attendance
-  /(app)/history
-  /(app)/employees   (admin)
-  /(app)/settings
-  /api/sheets        (Mongo + mock)
-/lib/mongodb.ts
-/lib/mongo-store.ts
-/lib/sheets.ts       (client → /api/sheets)
-```
-
-## Tính năng MVP
-
-- **Nhân viên:** đăng nhập → Check in / Check out → lịch sử
-- **Admin:** quản lý nhân viên (thêm / sửa / xóa), lọc lịch sử, xuất CSV
-- **Offline:** POST lỗi → hàng đợi `localStorage` → retry + toast
+- Nhân viên: đăng nhập → check-in / check-out → lịch sử
+- Admin: thêm / sửa / xóa nhân viên, lọc lịch sử, xuất CSV
+- Offline: xếp hàng `localStorage` → sync lại

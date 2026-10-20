@@ -11,8 +11,8 @@ import {
 } from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
 import { getQueue } from "@/lib/offline-queue";
-import { fetchDataBackend, flushOfflineQueue } from "@/lib/sheets";
-import { CloudOff, Database, LogOut, RefreshCw } from "lucide-react";
+import { flushOfflineQueue } from "@/lib/sheets";
+import { AlertTriangle, Database, LogOut, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -22,11 +22,16 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const [queueCount, setQueueCount] = useState(0);
   const [syncing, setSyncing] = useState(false);
-  const [backend, setBackend] = useState<"mongo" | "mock">("mock");
+  const [dbOk, setDbOk] = useState<boolean | null>(null);
 
   useEffect(() => {
     setQueueCount(getQueue().length);
-    fetchDataBackend().then(setBackend);
+    fetch("/api/sheets")
+      .then(async (res) => {
+        const data = await res.json();
+        setDbOk(res.ok && data.ok === true);
+      })
+      .catch(() => setDbOk(false));
   }, []);
 
   const handleSync = async () => {
@@ -79,18 +84,20 @@ export default function SettingsPage() {
             Kết nối dữ liệu
           </CardTitle>
           <CardDescription>
-            Nguồn dữ liệu và hàng đợi offline
+            MongoDB Atlas và hàng đợi offline
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center gap-3 rounded-lg bg-neutral-50 px-4 py-3">
-            {backend === "mock" ? (
+            {dbOk === false ? (
               <>
-                <CloudOff className="h-5 w-5 text-amber-500" />
+                <AlertTriangle className="h-5 w-5 text-amber-500" />
                 <div>
-                  <p className="text-sm font-medium text-black">Chế độ demo</p>
+                  <p className="text-sm font-medium text-black">
+                    Không kết nối được DB
+                  </p>
                   <p className="text-xs text-neutral-500">
-                    Chưa cấu hình MONGODB_URI trên server
+                    Kiểm tra MONGODB_URI trên Vercel / .env.local
                   </p>
                 </div>
               </>
@@ -100,7 +107,7 @@ export default function SettingsPage() {
                 <div>
                   <p className="text-sm font-medium text-black">MongoDB Atlas</p>
                   <p className="text-xs text-neutral-500">
-                    Đã kết nối qua API server
+                    {dbOk === null ? "Đang kiểm tra…" : "Đã kết nối"}
                   </p>
                 </div>
               </>
@@ -119,7 +126,7 @@ export default function SettingsPage() {
             className="w-full"
             onClick={handleSync}
             loading={syncing}
-            disabled={backend === "mock"}
+            disabled={dbOk === false}
           >
             <RefreshCw className="h-4 w-4" />
             Đồng bộ lại

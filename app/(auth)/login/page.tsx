@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { useToast } from "@/components/ui/Toast";
-import { fetchIsMockMode, listEmployees, verifyPin } from "@/lib/sheets";
+import { listEmployees, verifyPin } from "@/lib/sheets";
 import type { Employee } from "@/lib/types";
 import { Fingerprint } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -21,17 +21,18 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [loadingList, setLoadingList] = useState(true);
   const [error, setError] = useState("");
-  const [mockMode, setMockMode] = useState(false);
 
   useEffect(() => {
     if (!authLoading && user) router.replace("/dashboard");
   }, [authLoading, user, router]);
 
   useEffect(() => {
-    fetchIsMockMode().then(setMockMode);
     listEmployees()
       .then((list) => {
         setEmployees(list.filter((e) => e.active));
+      })
+      .catch(() => {
+        setError("Không kết nối được database. Thử lại sau.");
       })
       .finally(() => setLoadingList(false));
   }, []);
@@ -91,14 +92,7 @@ export default function LoginPage() {
       <Card className="relative z-10 w-full max-w-md">
         <CardHeader>
           <CardTitle>Đăng nhập</CardTitle>
-          <CardDescription>
-            Chọn tên và nhập mã PIN 4 số
-            {mockMode && (
-              <span className="mt-1 block text-xs text-amber-600">
-                Chế độ demo — PIN mẫu: 1234 (admin)
-              </span>
-            )}
-          </CardDescription>
+          <CardDescription>Chọn tên và nhập mã PIN 4 số</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">

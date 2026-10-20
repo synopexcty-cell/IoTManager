@@ -1,30 +1,24 @@
 import { mongoHandler } from "./mongo-store";
 import { hasMongoUri } from "./mongodb";
-import { mockHandler } from "./sheets-mock";
 import type { SheetsRequest, SheetsResponse } from "./types";
 
-export type DataBackend = "mongo" | "mock";
-
 export function getDataConfig() {
-  const backend: DataBackend = hasMongoUri() ? "mongo" : "mock";
+  const configured = hasMongoUri();
   return {
-    backend,
-    mock: backend === "mock",
+    backend: configured ? ("mongo" as const) : ("unconfigured" as const),
+    configured,
   };
 }
 
-/** @deprecated dùng getDataConfig */
-export function getSheetsConfig() {
-  const c = getDataConfig();
-  return { mock: c.mock, url: "", secret: "" };
-}
-
-/** MongoDB Atlas, hoặc mock khi thiếu MONGODB_URI */
+/** Chỉ MongoDB Atlas — thiếu MONGODB_URI thì báo lỗi, không fallback demo */
 export async function callSheetsServer<T = unknown>(
   request: SheetsRequest
 ): Promise<SheetsResponse<T>> {
-  if (hasMongoUri()) {
-    return mongoHandler<T>(request);
+  if (!hasMongoUri()) {
+    return {
+      ok: false,
+      error: "Chưa cấu hình MONGODB_URI trên server",
+    };
   }
-  return mockHandler<T>(request);
+  return mongoHandler<T>(request);
 }

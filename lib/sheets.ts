@@ -6,10 +6,7 @@ import type {
   SheetsResponse,
 } from "./types";
 
-let mockCache: boolean | null = null;
-let backendCache: "mongo" | "mock" | null = null;
-
-/** Client calls /api/sheets — URL & secret stay on server. */
+/** Client → /api/sheets (MongoDB trên server). */
 async function postToApi<T>(
   request: SheetsRequest
 ): Promise<SheetsResponse<T>> {
@@ -24,43 +21,6 @@ async function postToApi<T>(
   return (await res.json()) as SheetsResponse<T>;
 }
 
-async function fetchStatus() {
-  const res = await fetch("/api/sheets");
-  const data = (await res.json()) as {
-    mock?: boolean;
-    backend?: "mongo" | "mock";
-  };
-  mockCache = !!data.mock;
-  backendCache = data.backend || (data.mock ? "mock" : "mongo");
-  return { mock: mockCache, backend: backendCache };
-}
-
-/** true = chưa cấu hình MONGODB_URI (demo). */
-export async function fetchIsMockMode(): Promise<boolean> {
-  if (mockCache !== null) return mockCache;
-  try {
-    const s = await fetchStatus();
-    return s.mock;
-  } catch {
-    mockCache = true;
-    return true;
-  }
-}
-
-export async function fetchDataBackend(): Promise<"mongo" | "mock"> {
-  if (backendCache) return backendCache;
-  try {
-    const s = await fetchStatus();
-    return s.backend;
-  } catch {
-    return "mock";
-  }
-}
-
-/**
- * Call data API (Mongo/mock on server).
- * On network failure for mutating actions, enqueue to localStorage.
- */
 export async function callSheets<T = unknown>(
   request: SheetsRequest,
   options?: { queueOnFail?: boolean }
@@ -84,7 +44,6 @@ export async function callSheets<T = unknown>(
   }
 }
 
-/** Retry all queued offline requests. Returns count of successful retries. */
 export async function flushOfflineQueue(): Promise<{
   success: number;
   failed: number;

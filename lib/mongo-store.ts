@@ -47,7 +47,7 @@ async function dbReady() {
   return db;
 }
 
-/** MongoDB Atlas — cùng contract với Sheets/mock */
+/** MongoDB Atlas handlers */
 export async function mongoHandler<T>(
   request: SheetsRequest
 ): Promise<SheetsResponse<T>> {
@@ -76,14 +76,15 @@ export async function mongoHandler<T>(
         return { ok: true, data: rows.map(publicEmployee) as T };
       }
       case "listAttendance": {
-        const filter: Record<string, unknown> = {};
-        if (payload.name) filter.employeeName = payload.name;
+        const filter: {
+          employeeName?: string;
+          date?: { $gte?: string; $lte?: string };
+        } = {};
+        if (payload.name) filter.employeeName = String(payload.name);
         if (payload.from || payload.to) {
           filter.date = {};
-          if (payload.from)
-            (filter.date as Record<string, string>).$gte = String(payload.from);
-          if (payload.to)
-            (filter.date as Record<string, string>).$lte = String(payload.to);
+          if (payload.from) filter.date.$gte = String(payload.from);
+          if (payload.to) filter.date.$lte = String(payload.to);
         }
         const rows = await attendance
           .find(filter)
@@ -94,8 +95,8 @@ export async function mongoHandler<T>(
       }
       case "verifyPin": {
         const emp = await employees.findOne({
-          name: payload.name,
-          pin: String(payload.pin),
+          name: String(payload.name || ""),
+          pin: String(payload.pin || ""),
           active: true,
         });
         if (!emp) return { ok: false, error: "Tên hoặc mã PIN không đúng" };

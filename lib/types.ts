@@ -4,7 +4,7 @@ export type AttendanceStatus = "checked_in" | "checked_out" | "absent";
 
 export interface Employee {
   name: string;
-  /** Chỉ có trên server / mock nội bộ — API không trả PIN về client */
+  /** Chỉ lưu trên server — API không trả PIN về client */
   pin?: string;
   role: Role;
   active: boolean;
