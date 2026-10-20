@@ -12,7 +12,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "ChấmCông — Hệ thống chấm công",
-  description: "Ứng dụng chấm công nhân viên với Google Sheets",
+  description: "Ứng dụng chấm công nhân viên với MongoDB Atlas",
 };
 
 export const viewport: Viewport = {

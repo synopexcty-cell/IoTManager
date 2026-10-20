@@ -12,7 +12,7 @@ import {
 import { useToast } from "@/components/ui/Toast";
 import { getQueue } from "@/lib/offline-queue";
 import { fetchDataBackend, flushOfflineQueue } from "@/lib/sheets";
-import { Cloud, CloudOff, Database, LogOut, RefreshCw } from "lucide-react";
+import { CloudOff, Database, LogOut, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -22,7 +22,7 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const [queueCount, setQueueCount] = useState(0);
   const [syncing, setSyncing] = useState(false);
-  const [backend, setBackend] = useState<"mongo" | "sheets" | "mock">("mock");
+  const [backend, setBackend] = useState<"mongo" | "mock">("mock");
 
   useEffect(() => {
     setQueueCount(getQueue().length);
@@ -94,23 +94,13 @@ export default function SettingsPage() {
                   </p>
                 </div>
               </>
-            ) : backend === "mongo" ? (
+            ) : (
               <>
                 <Database className="h-5 w-5 text-green-600" />
                 <div>
                   <p className="text-sm font-medium text-black">MongoDB Atlas</p>
                   <p className="text-xs text-neutral-500">
                     Đã kết nối qua API server
-                  </p>
-                </div>
-              </>
-            ) : (
-              <>
-                <Cloud className="h-5 w-5 text-green-600" />
-                <div>
-                  <p className="text-sm font-medium text-black">Google Sheets</p>
-                  <p className="text-xs text-neutral-500">
-                    Kết nối qua API server (URL ẩn)
                   </p>
                 </div>
               </>
