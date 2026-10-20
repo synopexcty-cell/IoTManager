@@ -1,5 +1,5 @@
 import { cacheGet, cacheInvalidate, cacheSet } from "./server-cache";
-import { getDb } from "./mongodb";
+import { friendlyMongoError, getDb } from "./mongodb";
 import type {
   AttendanceRecord,
   Employee,
@@ -261,7 +261,7 @@ export async function mongoHandler<T>(
   } catch (err) {
     return {
       ok: false,
-      error: err instanceof Error ? err.message : "Lỗi MongoDB",
+      error: friendlyMongoError(err),
     };
   }
 }

@@ -1,4 +1,9 @@
-import { getDb, getMongoHostHint, hasMongoUri } from "@/lib/mongodb";
+import {
+  friendlyMongoError,
+  getDb,
+  getMongoHostHint,
+  hasMongoUri,
+} from "@/lib/mongodb";
 import { getDataConfig, callSheetsServer } from "@/lib/sheets-server";
 import type { SheetsAction, SheetsRequest } from "@/lib/types";
 import { NextResponse } from "next/server";
@@ -44,7 +49,7 @@ export async function GET() {
         ok: false,
         backend: "mongo",
         host: getMongoHostHint(),
-        error: err instanceof Error ? err.message : "Mongo ping failed",
+        error: friendlyMongoError(err),
       },
       { status: 503 }
     );
