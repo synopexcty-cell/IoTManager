@@ -15,6 +15,7 @@ import { useToast } from "@/components/ui/Toast";
 import { checkIn, checkOut, listAttendance } from "@/lib/sheets";
 import type { AttendanceRecord } from "@/lib/types";
 import {
+  addDaysISO,
   formatDateVi,
   formatShortDate,
   statusLabel,
@@ -34,9 +35,7 @@ export default function AttendancePage() {
   const load = useCallback(async () => {
     if (!user) return;
     const date = todayISO();
-    const from = new Date();
-    from.setDate(from.getDate() - 6);
-    const fromStr = from.toISOString().slice(0, 10);
+    const fromStr = addDaysISO(date, -6);
 
     const [todayRecords, week] = await Promise.all([
       listAttendance({ name: user.name, from: date, to: date }),

@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/Table";
 import { listAttendance, listEmployees } from "@/lib/sheets";
 import type { AttendanceRecord } from "@/lib/types";
-import { formatShortDate, statusLabel, todayISO } from "@/lib/utils";
+import { addDaysISO, formatShortDate, statusLabel, todayISO } from "@/lib/utils";
 import { Download, Inbox } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -26,11 +26,7 @@ export default function HistoryPage() {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [names, setNames] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [from, setFrom] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
-    return d.toISOString().slice(0, 10);
-  });
+  const [from, setFrom] = useState(() => addDaysISO(todayISO(), -30));
   const [to, setTo] = useState(todayISO());
   const [nameFilter, setNameFilter] = useState("");
 
