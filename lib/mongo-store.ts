@@ -1,3 +1,4 @@
+import { cacheGet, cacheInvalidate, cacheSet } from "./server-cache";
 import { getDb } from "./mongodb";
 import type {
   AttendanceRecord,
@@ -6,6 +7,9 @@ import type {
   SheetsResponse,
 } from "./types";
 import { isValidPin, nowTime, todayISO } from "./utils";
+
+const EMP_TTL = 30_000;
+const ATT_TTL = 15_000;
 
 type EmpDoc = Employee & { _id?: unknown };
 type AttDoc = AttendanceRecord & { _id?: unknown };
@@ -34,9 +38,17 @@ export async function mongoHandler<T>(
 
     switch (action) {
       case "listEmployees": {
-        const count = await employees.countDocuments();
-        if (count === 0) {
-          await employees.insertOne({
+        const cached = cacheGet<ReturnType<typeof publicEmployee>[]>(
+          "employees:all"
+        );
+        if (cached) return { ok: true, data: cached as T };
+
+        let rows = await employees
+          .find({})
+          .sort({ employeeCode: 1 })
+          .toArray();
+        if (rows.length === 0) {
+          const seed: Employee = {
             name: "Admin",
             pin: "999999",
             role: "admin",
@@ -45,12 +57,25 @@ export async function mongoHandler<T>(
             phone: "",
             cccd: "",
             address: "",
-          });
+          };
+          await employees.insertOne(seed);
+          rows = await employees
+            .find({})
+            .sort({ employeeCode: 1 })
+            .toArray();
         }
-        const rows = await employees.find({}).sort({ employeeCode: 1 }).toArray();
-        return { ok: true, data: rows.map(publicEmployee) as T };
+        const data = rows.map(publicEmployee);
+        cacheSet("employees:all", data, EMP_TTL);
+        return { ok: true, data: data as T };
       }
       case "listAttendance": {
+        const nameKey = payload.name ? String(payload.name) : "";
+        const fromKey = payload.from ? String(payload.from) : "";
+        const toKey = payload.to ? String(payload.to) : "";
+        const cacheKey = `attendance:${nameKey}:${fromKey}:${toKey}`;
+        const cached = cacheGet<AttendanceRecord[]>(cacheKey);
+        if (cached) return { ok: true, data: cached as T };
+
         const filter: {
           employeeName?: string;
           date?: { $gte?: string; $lte?: string };
@@ -64,8 +89,10 @@ export async function mongoHandler<T>(
         const rows = await attendance
           .find(filter)
           .sort({ date: -1, timestamp: -1 })
+          .limit(500)
           .toArray();
-        const data = rows.map(({ _id, ...rest }) => rest);
+        const data = rows.map(({ _id, ...rest }) => rest) as AttendanceRecord[];
+        cacheSet(cacheKey, data, ATT_TTL);
         return { ok: true, data: data as T };
       }
       case "verifyPin": {
@@ -104,6 +131,7 @@ export async function mongoHandler<T>(
         } else {
           await attendance.insertOne(record);
         }
+        cacheInvalidate("attendance:");
         return { ok: true, data: record as T };
       }
       case "checkOut": {
@@ -121,6 +149,7 @@ export async function mongoHandler<T>(
           { employeeName: name, date },
           { $set: { checkOut, status: "checked_out" } }
         );
+        cacheInvalidate("attendance:");
         return {
           ok: true,
           data: { ...existing, checkOut, status: "checked_out" } as T,
@@ -154,6 +183,7 @@ export async function mongoHandler<T>(
           address,
         };
         await employees.insertOne(emp);
+        cacheInvalidate("employees:");
         return { ok: true, data: publicEmployee(emp) as T };
       }
       case "updateEmployee": {
@@ -200,7 +230,9 @@ export async function mongoHandler<T>(
             { employeeName: originalName },
             { $set: { employeeName: name } }
           );
+          cacheInvalidate("attendance:");
         }
+        cacheInvalidate("employees:");
         return { ok: true, data: publicEmployee(emp) as T };
       }
       case "deleteEmployee": {
@@ -209,6 +241,7 @@ export async function mongoHandler<T>(
         if (res.deletedCount === 0) {
           return { ok: false, error: "Không tìm thấy nhân viên" };
         }
+        cacheInvalidate("employees:");
         return { ok: true, data: { name } as T };
       }
       case "deactivateEmployee": {
@@ -219,6 +252,7 @@ export async function mongoHandler<T>(
           { returnDocument: "after" }
         );
         if (!res) return { ok: false, error: "Không tìm thấy nhân viên" };
+        cacheInvalidate("employees:");
         return { ok: true, data: publicEmployee(res) as T };
       }
       default:

@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useToast } from "@/components/ui/Toast";
-import { flushOfflineQueue } from "@/lib/sheets";
+import { flushOfflineQueue, listEmployees } from "@/lib/sheets";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -37,6 +37,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!user) return;
+    // Prefetch danh sách NV vào cache — trang khác mở nhanh hơn
+    void listEmployees();
     flushOfflineQueue().then(({ success }) => {
       if (success > 0) {
         toast(`Đã đồng bộ ${success} thao tác offline`, "success");

@@ -1,3 +1,4 @@
+import { getDb, hasMongoUri } from "@/lib/mongodb";
 import { getDataConfig, callSheetsServer } from "@/lib/sheets-server";
 import type { SheetsAction, SheetsRequest } from "@/lib/types";
 import { NextResponse } from "next/server";
@@ -14,10 +15,10 @@ const ALLOWED: SheetsAction[] = [
   "deactivateEmployee",
 ];
 
-/** Trạng thái kết nối MongoDB */
+/** Trạng thái + warm Mongo connection */
 export async function GET() {
   const { configured, backend } = getDataConfig();
-  if (!configured) {
+  if (!configured || !hasMongoUri()) {
     return NextResponse.json(
       {
         ok: false,
@@ -27,7 +28,20 @@ export async function GET() {
       { status: 503 }
     );
   }
-  return NextResponse.json({ ok: true, backend: "mongo" });
+  try {
+    const db = await getDb();
+    await db.command({ ping: 1 });
+    return NextResponse.json({ ok: true, backend: "mongo" });
+  } catch (err) {
+    return NextResponse.json(
+      {
+        ok: false,
+        backend: "mongo",
+        error: err instanceof Error ? err.message : "Mongo ping failed",
+      },
+      { status: 503 }
+    );
+  }
 }
 
 export async function POST(req: Request) {

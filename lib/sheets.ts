@@ -1,3 +1,12 @@
+import {
+  clientCacheGetAttendance,
+  clientCacheGetEmployees,
+  clientCacheInvalidateAll,
+  clientCacheInvalidateAttendance,
+  clientCacheInvalidateEmployees,
+  clientCacheSetAttendance,
+  clientCacheSetEmployees,
+} from "./client-cache";
 import { enqueue, getQueue, setQueue } from "./offline-queue";
 import type {
   AttendanceRecord,
@@ -71,24 +80,43 @@ export async function flushOfflineQueue(): Promise<{
   }
 
   setQueue(remaining);
+  if (success > 0) clientCacheInvalidateAll();
   return { success, failed };
 }
 
-export async function listEmployees(): Promise<Employee[]> {
+export async function listEmployees(options?: {
+  force?: boolean;
+}): Promise<Employee[]> {
+  if (!options?.force) {
+    const cached = clientCacheGetEmployees<Employee[]>();
+    if (cached) return cached;
+  }
   const res = await callSheets<Employee[]>({ action: "listEmployees" });
-  return res.ok && res.data ? res.data : [];
+  const data = res.ok && res.data ? res.data : [];
+  if (res.ok) clientCacheSetEmployees(data);
+  return data;
 }
 
-export async function listAttendance(filters?: {
-  name?: string;
-  from?: string;
-  to?: string;
-}): Promise<AttendanceRecord[]> {
+export async function listAttendance(
+  filters?: {
+    name?: string;
+    from?: string;
+    to?: string;
+  },
+  options?: { force?: boolean }
+): Promise<AttendanceRecord[]> {
+  const key = `${filters?.name || ""}|${filters?.from || ""}|${filters?.to || ""}`;
+  if (!options?.force) {
+    const cached = clientCacheGetAttendance<AttendanceRecord[]>(key);
+    if (cached) return cached;
+  }
   const res = await callSheets<AttendanceRecord[]>({
     action: "listAttendance",
     payload: filters,
   });
-  return res.ok && res.data ? res.data : [];
+  const data = res.ok && res.data ? res.data : [];
+  if (res.ok) clientCacheSetAttendance(key, data);
+  return data;
 }
 
 export async function verifyPin(name: string, pin: string) {
@@ -99,17 +127,21 @@ export async function verifyPin(name: string, pin: string) {
 }
 
 export async function checkIn(name: string, note?: string) {
-  return callSheets<AttendanceRecord>(
+  const res = await callSheets<AttendanceRecord>(
     { action: "checkIn", payload: { name, note } },
     { queueOnFail: true }
   );
+  if (res.ok) clientCacheInvalidateAttendance();
+  return res;
 }
 
 export async function checkOut(name: string) {
-  return callSheets<AttendanceRecord>(
+  const res = await callSheets<AttendanceRecord>(
     { action: "checkOut", payload: { name } },
     { queueOnFail: true }
   );
+  if (res.ok) clientCacheInvalidateAttendance();
+  return res;
 }
 
 export async function addEmployee(payload: {
@@ -121,7 +153,7 @@ export async function addEmployee(payload: {
   cccd?: string;
   address?: string;
 }) {
-  return callSheets<Employee>(
+  const res = await callSheets<Employee>(
     {
       action: "addEmployee",
       payload: {
@@ -134,6 +166,8 @@ export async function addEmployee(payload: {
     },
     { queueOnFail: true }
   );
+  if (res.ok) clientCacheInvalidateEmployees();
+  return res;
 }
 
 export async function updateEmployee(payload: {
@@ -147,22 +181,31 @@ export async function updateEmployee(payload: {
   cccd?: string;
   address?: string;
 }) {
-  return callSheets<Employee>(
+  const res = await callSheets<Employee>(
     { action: "updateEmployee", payload },
     { queueOnFail: true }
   );
+  if (res.ok) {
+    clientCacheInvalidateEmployees();
+    clientCacheInvalidateAttendance();
+  }
+  return res;
 }
 
 export async function deleteEmployee(name: string) {
-  return callSheets<{ name: string }>(
+  const res = await callSheets<{ name: string }>(
     { action: "deleteEmployee", payload: { name } },
     { queueOnFail: true }
   );
+  if (res.ok) clientCacheInvalidateEmployees();
+  return res;
 }
 
 export async function deactivateEmployee(name: string) {
-  return callSheets<Employee>(
+  const res = await callSheets<Employee>(
     { action: "deactivateEmployee", payload: { name } },
     { queueOnFail: true }
   );
+  if (res.ok) clientCacheInvalidateEmployees();
+  return res;
 }

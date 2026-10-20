@@ -62,7 +62,7 @@ export default function EmployeesPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const list = await listEmployees();
+      const list = await listEmployees({ force: true });
       setEmployees(list);
     } finally {
       setLoading(false);
