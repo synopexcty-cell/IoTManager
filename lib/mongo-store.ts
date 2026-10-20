@@ -1,12 +1,33 @@
+import {
+  DEFAULT_COLUMN_COLORS,
+  normalizeColumnColors,
+} from "./column-colors";
 import { cacheGet, cacheInvalidate, cacheSet } from "./server-cache";
 import { friendlyMongoError, getDb } from "./mongodb";
 import type {
+  AppSettings,
   AttendanceRecord,
   Employee,
   SheetsRequest,
   SheetsResponse,
 } from "./types";
-import { isValidPin, normalizeEmployeeCode, nowTime, todayISO } from "./utils";
+import {
+  isValidPin,
+  normalizeEmployeeCode,
+  nowTime,
+  parseBirthDate,
+  parseGender,
+  todayISO,
+} from "./utils";
+
+const SETTINGS_ID = "app";
+const SETTINGS_CACHE = "settings:app";
+const SETTINGS_TTL = 60_000;
+
+type SettingsDoc = {
+  _id: string;
+  columnColors?: unknown;
+};
 
 const EMP_TTL = 30_000;
 const ATT_TTL = 15_000;
@@ -23,6 +44,8 @@ function publicEmployee(emp: EmpDoc) {
     phone: emp.phone || "",
     cccd: emp.cccd || "",
     address: emp.address || "",
+    gender: emp.gender || "",
+    birthDate: emp.birthDate || "",
     team: emp.team || "",
     shift: emp.shift || "",
   };
@@ -36,6 +59,7 @@ export async function mongoHandler<T>(
     const db = await getDb();
     const employees = db.collection<EmpDoc>("employees");
     const attendance = db.collection<AttDoc>("attendance");
+    const settings = db.collection<SettingsDoc>("settings");
     const { action, payload = {} } = request;
 
     switch (action) {
@@ -215,6 +239,8 @@ export async function mongoHandler<T>(
         const phone = String(payload.phone || "").trim();
         const cccd = String(payload.cccd || "").trim();
         const address = String(payload.address || "").trim();
+        const gender = parseGender(payload.gender);
+        const birthDate = parseBirthDate(payload.birthDate);
         const team = String(payload.team || "").trim();
         const shift = String(payload.shift || "").trim();
         if (!name || !employeeCode || !isValidPin(pin)) {
@@ -235,6 +261,8 @@ export async function mongoHandler<T>(
           phone,
           cccd,
           address,
+          gender,
+          birthDate,
           team,
           shift,
           mustChangePassword: true,
@@ -297,6 +325,8 @@ export async function mongoHandler<T>(
             phone: String(raw.phone || "").trim(),
             cccd: String(raw.cccd || "").trim(),
             address: String(raw.address || "").trim(),
+            gender: parseGender(raw.gender),
+            birthDate: parseBirthDate(raw.birthDate),
             team: String(raw.team || "").trim(),
             shift: String(raw.shift || "").trim(),
             mustChangePassword: true,
@@ -337,6 +367,8 @@ export async function mongoHandler<T>(
         }
         const prev = await employees.findOne({ name: originalName });
         if (!prev) return { ok: false, error: "Không tìm thấy nhân viên" };
+        const gender = parseGender(payload.gender ?? prev.gender);
+        const birthDate = parseBirthDate(payload.birthDate ?? prev.birthDate);
         if (name !== originalName && (await employees.findOne({ name }))) {
           return { ok: false, error: "Họ tên đã tồn tại" };
         }
@@ -357,6 +389,8 @@ export async function mongoHandler<T>(
           phone,
           cccd,
           address,
+          gender,
+          birthDate,
           team,
           shift,
           ...(pinRaw ? { mustChangePassword: true } : {}),
@@ -391,6 +425,30 @@ export async function mongoHandler<T>(
         if (!res) return { ok: false, error: "Không tìm thấy nhân viên" };
         cacheInvalidate("employees:");
         return { ok: true, data: publicEmployee(res) as T };
+      }
+      case "getSettings": {
+        const cached = cacheGet<AppSettings>(SETTINGS_CACHE);
+        if (cached) return { ok: true, data: cached as T };
+        const doc = await settings.findOne({ _id: SETTINGS_ID });
+        const data: AppSettings = {
+          columnColors: doc
+            ? normalizeColumnColors(doc.columnColors)
+            : DEFAULT_COLUMN_COLORS,
+        };
+        cacheSet(SETTINGS_CACHE, data, SETTINGS_TTL);
+        return { ok: true, data: data as T };
+      }
+      case "updateSettings": {
+        const columnColors = normalizeColumnColors(payload.columnColors);
+        await settings.updateOne(
+          { _id: SETTINGS_ID },
+          { $set: { columnColors } },
+          { upsert: true }
+        );
+        const data: AppSettings = { columnColors };
+        cacheInvalidate(SETTINGS_CACHE);
+        cacheSet(SETTINGS_CACHE, data, SETTINGS_TTL);
+        return { ok: true, data: data as T };
       }
       default:
         return { ok: false, error: `Unknown action: ${action}` };

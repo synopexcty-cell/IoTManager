@@ -1,17 +1,12 @@
-import type { AttendanceRecord, Employee } from "@/lib/types";
-import { daysInMonth, weekdayOf, workedHours } from "@/lib/utils";
-import { cn } from "@/lib/utils";
-
-const WEEKDAYS = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
+import {
+  contrastText,
+  DEFAULT_COLUMN_COLORS,
+  WEEKDAY_SHORT,
+} from "@/lib/column-colors";
+import type { AttendanceRecord, ColumnColors, Employee } from "@/lib/types";
+import { cn, daysInMonth, weekdayOf, workedHours } from "@/lib/utils";
 
 type CellValue = number | "P" | "/" | string | undefined;
-
-function dayTone(year: number, month: number, day: number) {
-  const wd = weekdayOf(year, month, day);
-  if (wd === 0) return "bg-[#ed7d31]";
-  if (wd === 6) return "bg-[#ffc000]";
-  return "";
-}
 
 function cellFromRecord(rec?: AttendanceRecord): CellValue {
   if (!rec) return undefined;
@@ -28,16 +23,23 @@ function isLeave(value: CellValue) {
   return value === "P" || value === "/";
 }
 
+function weekdayFill(colors: ColumnColors, year: number, month: number, day: number) {
+  const wd = weekdayOf(year, month, day);
+  return colors.weekdays[wd] || "#ffffff";
+}
+
 export function MonthGrid({
   year,
   month,
   employees,
   records,
+  columnColors = DEFAULT_COLUMN_COLORS,
 }: {
   year: number;
   month: number;
   employees: Employee[];
   records: AttendanceRecord[];
+  columnColors?: ColumnColors;
 }) {
   const lastDay = daysInMonth(year, month);
   const days = Array.from({ length: lastDay }, (_, i) => i + 1);
@@ -66,6 +68,11 @@ export function MonthGrid({
   const th = "border border-neutral-800 px-1 py-1 text-center text-[11px] font-bold leading-tight sm:text-xs";
   const td = "border border-neutral-800 px-1 py-1 text-center text-[11px] leading-tight sm:text-xs";
 
+  const totalStyle = {
+    backgroundColor: columnColors.total,
+    color: contrastText(columnColors.total),
+  };
+
   return (
     <div className="space-y-3">
       <div className="-mx-4 overflow-x-auto px-4 sm:-mx-6 sm:px-6">
@@ -75,15 +82,21 @@ export function MonthGrid({
               <th className={cn(th, "min-w-[220px] bg-white text-left")} colSpan={4}>
                 Lịch chấm công — Tháng {month}/{year}
               </th>
-              {days.map((day) => (
-                <th
-                  key={`d-${day}`}
-                  className={cn(th, "w-11 min-w-[44px]", dayTone(year, month, day))}
-                >
-                  {day}
-                </th>
-              ))}
-              <th className={cn(th, "w-16 min-w-[56px] bg-[#fff1a6]")}>Tổng</th>
+              {days.map((day) => {
+                const bg = weekdayFill(columnColors, year, month, day);
+                return (
+                  <th
+                    key={`d-${day}`}
+                    className={cn(th, "w-11 min-w-[44px]")}
+                    style={{ backgroundColor: bg, color: contrastText(bg) }}
+                  >
+                    {day}
+                  </th>
+                );
+              })}
+              <th className={cn(th, "w-16 min-w-[56px]")} style={totalStyle}>
+                Tổng
+              </th>
             </tr>
             <tr>
               <th className={cn(th, "w-12")}>No</th>
@@ -94,15 +107,21 @@ export function MonthGrid({
                 <br />
                 <span className="font-normal text-neutral-500">Full Name</span>
               </th>
-              {days.map((day) => (
-                <th
-                  key={`w-${day}`}
-                  className={cn(th, "w-11 min-w-[44px]", dayTone(year, month, day))}
-                >
-                  {WEEKDAYS[weekdayOf(year, month, day)]}
-                </th>
-              ))}
-              <th className={cn(th, "w-16 min-w-[56px] bg-[#fff1a6]")}>Giờ</th>
+              {days.map((day) => {
+                const bg = weekdayFill(columnColors, year, month, day);
+                return (
+                  <th
+                    key={`w-${day}`}
+                    className={cn(th, "w-11 min-w-[44px]")}
+                    style={{ backgroundColor: bg, color: contrastText(bg) }}
+                  >
+                    {WEEKDAY_SHORT[weekdayOf(year, month, day)]}
+                  </th>
+                );
+              })}
+              <th className={cn(th, "w-16 min-w-[56px]")} style={totalStyle}>
+                Giờ
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -132,21 +151,26 @@ export function MonthGrid({
                 {cells.map((value, i) => {
                   const day = i + 1;
                   const leave = isLeave(value);
+                  const bg = leave
+                    ? "#000000"
+                    : weekdayFill(columnColors, year, month, day);
                   return (
                     <td
                       key={`${emp.name}-${day}`}
-                      className={cn(
-                        td,
-                        "tabular-nums",
-                        dayTone(year, month, day),
-                        leave && "bg-black font-bold text-white"
-                      )}
+                      className={cn(td, "tabular-nums", leave && "font-bold")}
+                      style={{
+                        backgroundColor: bg,
+                        color: leave ? "#ffffff" : contrastText(bg),
+                      }}
                     >
                       {value === undefined ? "" : value}
                     </td>
                   );
                 })}
-                <td className={cn(td, "bg-[#fff1a6] font-bold tabular-nums")}>
+                <td
+                  className={cn(td, "font-bold tabular-nums")}
+                  style={totalStyle}
+                >
                   {total ? total.toFixed(1) : ""}
                 </td>
               </tr>
@@ -159,20 +183,21 @@ export function MonthGrid({
                 const count = rows.filter(
                   (r) => typeof r.cells[day - 1] === "number"
                 ).length;
+                const bg = weekdayFill(columnColors, year, month, day);
                 return (
                   <td
                     key={`t-${day}`}
-                    className={cn(
-                      td,
-                      "font-bold tabular-nums",
-                      dayTone(year, month, day)
-                    )}
+                    className={cn(td, "font-bold tabular-nums")}
+                    style={{ backgroundColor: bg, color: contrastText(bg) }}
                   >
                     {count || ""}
                   </td>
                 );
               })}
-              <td className={cn(td, "bg-[#fff1a6] font-bold tabular-nums")}>
+              <td
+                className={cn(td, "font-bold tabular-nums")}
+                style={totalStyle}
+              >
                 {rows.reduce(
                   (sum, r) =>
                     sum + r.cells.filter((v) => typeof v === "number").length,

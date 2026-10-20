@@ -1,5 +1,10 @@
 import * as XLSX from "xlsx";
-import { isValidPin, normalizeEmployeeCode } from "./utils";
+import {
+  isValidPin,
+  normalizeEmployeeCode,
+  parseBirthDate,
+  parseGender,
+} from "./utils";
 
 export type ImportRow = {
   employeeCode: string;
@@ -8,6 +13,8 @@ export type ImportRow = {
   phone: string;
   cccd: string;
   address: string;
+  gender: string;
+  birthDate: string;
   team: string;
   shift: string;
   role: "employee" | "admin";
@@ -37,6 +44,17 @@ const HEADER_MAP: Record<string, keyof ImportRow> = {
   cccdcmnd: "cccd",
   diachi: "address",
   address: "address",
+  gioitinh: "gender",
+  gender: "gender",
+  sex: "gender",
+  ngaysinh: "birthDate",
+  ngaysinhnhat: "birthDate",
+  ngaythangnamsinh: "birthDate",
+  namsinh: "birthDate",
+  birthday: "birthDate",
+  birthdate: "birthDate",
+  dob: "birthDate",
+  dateofbirth: "birthDate",
   team: "team",
   nhom: "team",
   phongban: "team",
@@ -58,6 +76,12 @@ function strip(s: string) {
 
 function cellStr(v: unknown): string {
   if (v == null || v === "") return "";
+  if (v instanceof Date && !Number.isNaN(v.getTime())) {
+    const y = v.getFullYear();
+    const m = String(v.getMonth() + 1).padStart(2, "0");
+    const d = String(v.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
   if (typeof v === "number" && Number.isFinite(v)) {
     if (Number.isInteger(v)) return String(v);
     return String(v);
@@ -74,6 +98,8 @@ function parseRole(raw: string): "employee" | "admin" {
 export const IMPORT_HEADERS = [
   "Mã NV",
   "Họ và tên",
+  "Giới tính",
+  "Ngày sinh",
   "PIN",
   "SĐT",
   "CCCD",
@@ -89,6 +115,8 @@ export function downloadEmployeeTemplate() {
     [
       "VT007925",
       "Nguyễn Văn A",
+      "Nam",
+      "15/08/1995",
       "1234",
       "0901234567",
       "079085001234",
@@ -99,7 +127,7 @@ export function downloadEmployeeTemplate() {
     ],
   ]);
   ws["!cols"] = IMPORT_HEADERS.map((_, i) => ({
-    wch: [12, 22, 8, 14, 16, 24, 10, 14, 12][i],
+    wch: [12, 22, 12, 14, 8, 14, 16, 24, 10, 14, 12][i],
   }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "NhanVien");
@@ -108,14 +136,17 @@ export function downloadEmployeeTemplate() {
 
 export async function parseEmployeeFile(file: File): Promise<ImportRow[]> {
   const buf = await file.arrayBuffer();
-  const wb = XLSX.read(buf, { type: "array" });
+  const wb = XLSX.read(buf, { type: "array", cellDates: true });
   const sheet = wb.Sheets[wb.SheetNames[0]];
   if (!sheet) return [];
-  const matrix = XLSX.utils.sheet_to_json<(string | number | null)[]>(sheet, {
-    header: 1,
-    defval: "",
-    raw: false,
-  });
+  const matrix = XLSX.utils.sheet_to_json<(string | number | Date | null)[]>(
+    sheet,
+    {
+      header: 1,
+      defval: "",
+      raw: true,
+    }
+  );
   if (matrix.length < 2) return [];
 
   const headerRow = (matrix[0] || []).map((h) => strip(cellStr(h)));
@@ -130,6 +161,8 @@ export async function parseEmployeeFile(file: File): Promise<ImportRow[]> {
     const line = matrix[r] || [];
     const get = (k: keyof ImportRow) =>
       colIndex[k] == null ? "" : cellStr(line[colIndex[k]!]);
+    const rawOf = (k: keyof ImportRow) =>
+      colIndex[k] == null ? "" : line[colIndex[k]!];
 
     const employeeCode = normalizeEmployeeCode(get("employeeCode"));
     const name = get("name");
@@ -137,6 +170,9 @@ export async function parseEmployeeFile(file: File): Promise<ImportRow[]> {
 
     const pin = get("pin") || "1234";
     const role = parseRole(get("role"));
+    const gender = parseGender(get("gender"));
+    const birthRaw = rawOf("birthDate");
+    const birthDate = parseBirthDate(birthRaw);
     const row: ImportRow = {
       employeeCode,
       name,
@@ -144,6 +180,8 @@ export async function parseEmployeeFile(file: File): Promise<ImportRow[]> {
       phone: get("phone"),
       cccd: get("cccd"),
       address: get("address"),
+      gender,
+      birthDate,
       team: get("team"),
       shift: get("shift"),
       role,
@@ -153,6 +191,8 @@ export async function parseEmployeeFile(file: File): Promise<ImportRow[]> {
       row.error = "Thiếu mã NV hoặc họ tên";
     } else if (!isValidPin(pin)) {
       row.error = "Mật khẩu phải 4–8 số";
+    } else if (cellStr(birthRaw) && !birthDate) {
+      row.error = "Ngày sinh không hợp lệ (dd/mm/yyyy)";
     }
     rows.push(row);
   }

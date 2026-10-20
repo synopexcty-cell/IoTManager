@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { TableSkeleton } from "@/components/ui/Skeleton";
-import { listAttendance, listEmployees } from "@/lib/sheets";
-import type { AttendanceRecord, Employee } from "@/lib/types";
+import { DEFAULT_COLUMN_COLORS } from "@/lib/column-colors";
+import { getSettings, listAttendance, listEmployees } from "@/lib/sheets";
+import type { AttendanceRecord, ColumnColors, Employee } from "@/lib/types";
 import { monthRange, todayISO } from "@/lib/utils";
 import { ChevronLeft, ChevronRight, Download, Inbox } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -20,6 +21,9 @@ export default function HistoryPage() {
   const [month, setMonth] = useState(() => Number(today.slice(5, 7)));
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
+  const [columnColors, setColumnColors] = useState<ColumnColors>(
+    DEFAULT_COLUMN_COLORS
+  );
   const [loading, setLoading] = useState(true);
 
   const { from, to } = useMemo(() => monthRange(year, month), [year, month]);
@@ -34,19 +38,21 @@ export default function HistoryPage() {
     if (!user) return;
     setLoading(true);
     try {
-      const [emps, att] = await Promise.all([
+      const [emps, att, settings] = await Promise.all([
         listEmployees(),
         listAttendance({
           from,
           to,
           name: isAdmin ? undefined : user.name,
         }),
+        getSettings(),
       ]);
       const list = isAdmin
         ? emps.filter((e) => e.active)
         : emps.filter((e) => e.name === user.name);
       setEmployees(list);
       setRecords(att);
+      setColumnColors(settings.columnColors);
     } finally {
       setLoading(false);
     }
@@ -147,6 +153,7 @@ export default function HistoryPage() {
           month={month}
           employees={employees}
           records={records}
+          columnColors={columnColors}
         />
       )}
     </div>

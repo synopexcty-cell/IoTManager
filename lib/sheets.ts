@@ -1,14 +1,19 @@
 import {
   clientCacheGetAttendance,
   clientCacheGetEmployees,
+  clientCacheGetSettings,
   clientCacheInvalidateAll,
   clientCacheInvalidateAttendance,
   clientCacheInvalidateEmployees,
+  clientCacheInvalidateSettings,
   clientCacheSetAttendance,
   clientCacheSetEmployees,
+  clientCacheSetSettings,
 } from "./client-cache";
+import { DEFAULT_COLUMN_COLORS } from "./column-colors";
 import { enqueue, getQueue, setQueue } from "./offline-queue";
 import type {
+  AppSettings,
   AttendanceRecord,
   Employee,
   SheetsRequest,
@@ -176,6 +181,8 @@ export async function addEmployee(payload: {
   phone?: string;
   cccd?: string;
   address?: string;
+  gender?: string;
+  birthDate?: string;
   team?: string;
   shift?: string;
 }) {
@@ -187,6 +194,8 @@ export async function addEmployee(payload: {
         phone: "",
         cccd: "",
         address: "",
+        gender: "",
+        birthDate: "",
         team: "",
         shift: "",
         ...payload,
@@ -207,6 +216,8 @@ export async function importEmployees(
     phone?: string;
     cccd?: string;
     address?: string;
+    gender?: string;
+    birthDate?: string;
     team?: string;
     shift?: string;
   }>
@@ -233,6 +244,8 @@ export async function updateEmployee(payload: {
   phone?: string;
   cccd?: string;
   address?: string;
+  gender?: string;
+  birthDate?: string;
 }) {
   const res = await callSheets<Employee>(
     { action: "updateEmployee", payload },
@@ -260,5 +273,36 @@ export async function deactivateEmployee(name: string) {
     { queueOnFail: true }
   );
   if (res.ok) clientCacheInvalidateEmployees();
+  return res;
+}
+
+export async function getSettings(options?: {
+  force?: boolean;
+}): Promise<AppSettings> {
+  if (!options?.force) {
+    const cached = clientCacheGetSettings<AppSettings>();
+    if (cached) return cached;
+  }
+  const res = await callSheets<AppSettings>({ action: "getSettings" });
+  const data: AppSettings =
+    res.ok && res.data
+      ? res.data
+      : { columnColors: DEFAULT_COLUMN_COLORS };
+  if (res.ok) clientCacheSetSettings(data);
+  return data;
+}
+
+export async function updateSettings(payload: {
+  columnColors: AppSettings["columnColors"];
+}) {
+  const res = await callSheets<AppSettings>({
+    action: "updateSettings",
+    payload,
+  });
+  if (res.ok && res.data) {
+    clientCacheSetSettings(res.data);
+  } else {
+    clientCacheInvalidateSettings();
+  }
   return res;
 }

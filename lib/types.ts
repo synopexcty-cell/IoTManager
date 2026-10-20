@@ -13,6 +13,10 @@ export interface Employee {
   phone: string;
   cccd: string;
   address: string;
+  /** Nam | Nữ | "" */
+  gender?: string;
+  /** yyyy-MM-dd */
+  birthDate?: string;
   team?: string;
   shift?: string;
   /** true = lần đầu / mật khẩu tạm, bắt đổi khi đăng nhập */
@@ -36,6 +40,16 @@ export interface AuthUser {
   mustChangePassword?: boolean;
 }
 
+export interface ColumnColors {
+  /** 7 màu: index 0 = CN … 6 = T7 */
+  weekdays: string[];
+  total: string;
+}
+
+export interface AppSettings {
+  columnColors: ColumnColors;
+}
+
 export type SheetsAction =
   | "listEmployees"
   | "listAttendance"
@@ -47,7 +61,9 @@ export type SheetsAction =
   | "deleteEmployee"
   | "deactivateEmployee"
   | "verifyPin"
-  | "changePassword";
+  | "changePassword"
+  | "getSettings"
+  | "updateSettings";
 
 export interface SheetsRequest {
   action: SheetsAction;

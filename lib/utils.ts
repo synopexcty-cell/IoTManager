@@ -15,6 +15,68 @@ export function normalizeEmployeeCode(code: string): string {
   return code.trim().toUpperCase();
 }
 
+function stripVi(s: string) {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .trim();
+}
+
+/** Chuẩn hóa giới tính: Nam / Nữ / "" */
+export function parseGender(raw: unknown): string {
+  const s = stripVi(String(raw ?? ""));
+  if (!s) return "";
+  if (["nam", "male", "m", "boy", "1"].includes(s)) return "Nam";
+  if (["nu", "female", "f", "girl", "0", "2"].includes(s)) return "Nữ";
+  return "";
+}
+
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+function ymd(year: number, month: number, day: number): string {
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    return "";
+  }
+  const dt = new Date(year, month - 1, day);
+  if (
+    dt.getFullYear() !== year ||
+    dt.getMonth() !== month - 1 ||
+    dt.getDate() !== day
+  ) {
+    return "";
+  }
+  const now = new Date();
+  if (year < 1920 || dt > now) return "";
+  return `${year}-${pad2(month)}-${pad2(day)}`;
+}
+
+/** Nhận Date, serial Excel, yyyy-MM-dd hoặc dd/MM/yyyy → yyyy-MM-dd */
+export function parseBirthDate(raw: unknown): string {
+  if (raw == null || raw === "") return "";
+  if (raw instanceof Date && !Number.isNaN(raw.getTime())) {
+    return ymd(raw.getFullYear(), raw.getMonth() + 1, raw.getDate());
+  }
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    if (raw > 15000 && raw < 80000) {
+      const utc = Date.UTC(1899, 11, 30) + Math.round(raw) * 86400000;
+      const d = new Date(utc);
+      return ymd(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
+    }
+    return "";
+  }
+  const s = String(raw).trim();
+  if (!s) return "";
+  let m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+  if (m) return ymd(Number(m[1]), Number(m[2]), Number(m[3]));
+  m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
+  if (m) return ymd(Number(m[3]), Number(m[2]), Number(m[1]));
+  return "";
+}
+
 /** Vercel ở Mỹ — luôn tính theo VN */
 export const APP_TZ = "Asia/Ho_Chi_Minh";
 

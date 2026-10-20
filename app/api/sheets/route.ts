@@ -20,6 +20,8 @@ const ALLOWED: SheetsAction[] = [
   "deleteEmployee",
   "deactivateEmployee",
   "changePassword",
+  "getSettings",
+  "updateSettings",
 ];
 
 /** Trạng thái + warm Mongo connection */

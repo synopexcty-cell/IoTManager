@@ -48,6 +48,21 @@ export function clientCacheInvalidateAttendance() {
   });
 }
 
+const SETTINGS_KEY = "settings:app";
+const SETTINGS_TTL = 60_000;
+
+export function clientCacheGetSettings<T>(): T | undefined {
+  return get<T>(SETTINGS_KEY);
+}
+
+export function clientCacheSetSettings(value: unknown) {
+  set(SETTINGS_KEY, value, SETTINGS_TTL);
+}
+
+export function clientCacheInvalidateSettings() {
+  mem.delete(SETTINGS_KEY);
+}
+
 export function clientCacheInvalidateAll() {
   mem.clear();
 }

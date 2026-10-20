@@ -29,7 +29,7 @@ import {
   updateEmployee,
 } from "@/lib/sheets";
 import type { Employee, Role } from "@/lib/types";
-import { isValidPin } from "@/lib/utils";
+import { formatShortDate, isValidPin } from "@/lib/utils";
 import { FileSpreadsheet, Pencil, Trash2, UserPlus, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -45,6 +45,8 @@ const emptyForm = {
   phone: "",
   cccd: "",
   address: "",
+  gender: "",
+  birthDate: "",
 };
 
 export default function EmployeesPage() {
@@ -106,6 +108,8 @@ export default function EmployeesPage() {
       phone: emp.phone || "",
       cccd: emp.cccd || "",
       address: emp.address || "",
+      gender: emp.gender || "",
+      birthDate: emp.birthDate || "",
     });
     setModalOpen(true);
   };
@@ -139,6 +143,8 @@ export default function EmployeesPage() {
           phone: form.phone.trim(),
           cccd: form.cccd.trim(),
           address: form.address.trim(),
+          gender: form.gender,
+          birthDate: form.birthDate,
         });
         if (res.ok) {
           toast("Đã thêm nhân viên", "success");
@@ -165,6 +171,8 @@ export default function EmployeesPage() {
         phone: form.phone.trim(),
         cccd: form.cccd.trim(),
         address: form.address.trim(),
+        gender: form.gender,
+        birthDate: form.birthDate,
       });
       if (res.ok) {
         toast("Đã cập nhật nhân viên", "success");
@@ -281,7 +289,7 @@ export default function EmployeesPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-neutral-500">
-          Quản lý hồ sơ nhân viên (mã NV, SĐT, CCCD, địa chỉ…)
+          Quản lý hồ sơ nhân viên (mã NV, giới tính, ngày sinh, SĐT, CCCD…)
         </p>
         <div className="flex flex-wrap gap-2">
           <input
@@ -343,6 +351,8 @@ export default function EmployeesPage() {
                   <TableRow>
                     <TableHead>Mã NV</TableHead>
                     <TableHead>Họ tên</TableHead>
+                    <TableHead>Giới tính</TableHead>
+                    <TableHead>Ngày sinh</TableHead>
                     <TableHead>SĐT</TableHead>
                     <TableHead>CCCD</TableHead>
                     <TableHead>Vai trò</TableHead>
@@ -365,6 +375,10 @@ export default function EmployeesPage() {
                             </p>
                           ) : null}
                         </div>
+                      </TableCell>
+                      <TableCell>{emp.gender || "—"}</TableCell>
+                      <TableCell className="tabular-nums">
+                        {emp.birthDate ? formatShortDate(emp.birthDate) : "—"}
                       </TableCell>
                       <TableCell className="tabular-nums">
                         {emp.phone || "—"}
@@ -407,6 +421,10 @@ export default function EmployeesPage() {
                     <p className="font-medium text-black">{emp.name}</p>
                     <p className="mt-1 text-sm text-neutral-500">
                       {emp.role === "admin" ? "Quản trị" : "Nhân viên"}
+                      {emp.gender ? ` · ${emp.gender}` : ""}
+                      {emp.birthDate
+                        ? ` · ${formatShortDate(emp.birthDate)}`
+                        : ""}
                       {emp.phone ? ` · ${emp.phone}` : ""}
                     </p>
                     {emp.cccd ? (
@@ -474,6 +492,32 @@ export default function EmployeesPage() {
             required={modalMode === "add"}
             placeholder="••••"
           />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <label
+                htmlFor="emp-gender"
+                className="text-sm font-medium text-neutral-800"
+              >
+                Giới tính
+              </label>
+              <select
+                id="emp-gender"
+                value={form.gender}
+                onChange={(e) => setField("gender", e.target.value)}
+                className="h-11 min-h-[44px] w-full rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                <option value="">—</option>
+                <option value="Nam">Nam</option>
+                <option value="Nữ">Nữ</option>
+              </select>
+            </div>
+            <Input
+              label="Ngày sinh"
+              type="date"
+              value={form.birthDate}
+              onChange={(e) => setField("birthDate", e.target.value)}
+            />
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <Input
               label="Số điện thoại"
@@ -564,6 +608,8 @@ export default function EmployeesPage() {
               <tr>
                 <th className="px-2 py-2">Mã</th>
                 <th className="px-2 py-2">Họ tên</th>
+                <th className="px-2 py-2">GT</th>
+                <th className="px-2 py-2">Ngày sinh</th>
                 <th className="px-2 py-2">PIN</th>
                 <th className="px-2 py-2">Team</th>
                 <th className="px-2 py-2">Ghi chú</th>
@@ -577,6 +623,10 @@ export default function EmployeesPage() {
                 >
                   <td className="px-2 py-1.5 tabular-nums">{r.employeeCode}</td>
                   <td className="px-2 py-1.5">{r.name}</td>
+                  <td className="px-2 py-1.5">{r.gender || "—"}</td>
+                  <td className="px-2 py-1.5 tabular-nums">
+                    {r.birthDate ? formatShortDate(r.birthDate) : "—"}
+                  </td>
                   <td className="px-2 py-1.5 tabular-nums">{r.pin}</td>
                   <td className="px-2 py-1.5">{r.team || "—"}</td>
                   <td className="px-2 py-1.5 text-xs">{r.error || "OK"}</td>
