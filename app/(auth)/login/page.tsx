@@ -28,12 +28,19 @@ export default function LoginPage() {
   }, [authLoading, user, router]);
 
   useEffect(() => {
-    listEmployees()
+    listEmployees({ force: true })
       .then((list) => {
         setEmployees(list.filter((e) => e.active));
+        if (list.filter((e) => e.active).length === 0) {
+          setError("Chưa có nhân viên hoạt động trong database.");
+        }
       })
-      .catch(() => {
-        setError("Không kết nối được database. Thử lại sau.");
+      .catch((err) => {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Không kết nối được database. Thử lại sau."
+        );
       })
       .finally(() => setLoadingList(false));
   }, []);

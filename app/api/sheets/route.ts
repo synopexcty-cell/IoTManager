@@ -1,4 +1,4 @@
-import { getDb, hasMongoUri } from "@/lib/mongodb";
+import { getDb, getMongoHostHint, hasMongoUri } from "@/lib/mongodb";
 import { getDataConfig, callSheetsServer } from "@/lib/sheets-server";
 import type { SheetsAction, SheetsRequest } from "@/lib/types";
 import { NextResponse } from "next/server";
@@ -31,12 +31,19 @@ export async function GET() {
   try {
     const db = await getDb();
     await db.command({ ping: 1 });
-    return NextResponse.json({ ok: true, backend: "mongo" });
+    const count = await db.collection("employees").countDocuments();
+    return NextResponse.json({
+      ok: true,
+      backend: "mongo",
+      host: getMongoHostHint(),
+      employees: count,
+    });
   } catch (err) {
     return NextResponse.json(
       {
         ok: false,
         backend: "mongo",
+        host: getMongoHostHint(),
         error: err instanceof Error ? err.message : "Mongo ping failed",
       },
       { status: 503 }

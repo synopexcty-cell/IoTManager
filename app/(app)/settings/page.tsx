@@ -23,6 +23,7 @@ export default function SettingsPage() {
   const [queueCount, setQueueCount] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const [dbOk, setDbOk] = useState<boolean | null>(null);
+  const [dbInfo, setDbInfo] = useState("");
 
   useEffect(() => {
     setQueueCount(getQueue().length);
@@ -30,8 +31,18 @@ export default function SettingsPage() {
       .then(async (res) => {
         const data = await res.json();
         setDbOk(res.ok && data.ok === true);
+        if (data.ok) {
+          setDbInfo(
+            `${data.host || "MongoDB"} · ${data.employees ?? "?"} nhân viên`
+          );
+        } else {
+          setDbInfo(data.error || "Lỗi kết nối");
+        }
       })
-      .catch(() => setDbOk(false));
+      .catch(() => {
+        setDbOk(false);
+        setDbInfo("Không gọi được API");
+      });
   }, []);
 
   const handleSync = async () => {
@@ -96,9 +107,7 @@ export default function SettingsPage() {
                   <p className="text-sm font-medium text-black">
                     Không kết nối được DB
                   </p>
-                  <p className="text-xs text-neutral-500">
-                    Kiểm tra MONGODB_URI trên Vercel / .env.local
-                  </p>
+                  <p className="text-xs text-neutral-500 break-all">{dbInfo}</p>
                 </div>
               </>
             ) : (
@@ -107,7 +116,7 @@ export default function SettingsPage() {
                 <div>
                   <p className="text-sm font-medium text-black">MongoDB Atlas</p>
                   <p className="text-xs text-neutral-500">
-                    {dbOk === null ? "Đang kiểm tra…" : "Đã kết nối"}
+                    {dbOk === null ? "Đang kiểm tra…" : dbInfo || "Đã kết nối"}
                   </p>
                 </div>
               </>

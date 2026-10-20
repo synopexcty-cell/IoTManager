@@ -92,8 +92,11 @@ export async function listEmployees(options?: {
     if (cached) return cached;
   }
   const res = await callSheets<Employee[]>({ action: "listEmployees" });
-  const data = res.ok && res.data ? res.data : [];
-  if (res.ok) clientCacheSetEmployees(data);
+  if (!res.ok) {
+    throw new Error(res.error || "Không tải được danh sách nhân viên");
+  }
+  const data = res.data || [];
+  clientCacheSetEmployees(data);
   return data;
 }
 
