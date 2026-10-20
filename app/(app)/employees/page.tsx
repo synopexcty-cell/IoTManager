@@ -23,6 +23,7 @@ import {
   updateEmployee,
 } from "@/lib/sheets";
 import type { Employee, Role } from "@/lib/types";
+import { isValidPin } from "@/lib/utils";
 import { Pencil, Trash2, UserPlus, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -116,8 +117,8 @@ export default function EmployeesPage() {
     setSaving(true);
     try {
       if (modalMode === "add") {
-        if (!/^\d{4}$/.test(form.pin)) {
-          toast("PIN phải gồm 4 chữ số", "error");
+        if (!isValidPin(form.pin)) {
+          toast("PIN phải gồm 4–6 chữ số", "error");
           return;
         }
         const res = await addEmployee({
@@ -139,8 +140,8 @@ export default function EmployeesPage() {
         return;
       }
 
-      if (form.pin && !/^\d{4}$/.test(form.pin)) {
-        toast("PIN phải gồm 4 chữ số (hoặc để trống để giữ PIN cũ)", "error");
+      if (form.pin && !isValidPin(form.pin)) {
+        toast("PIN phải gồm 4–6 chữ số (hoặc để trống để giữ PIN cũ)", "error");
         return;
       }
 
@@ -382,15 +383,15 @@ export default function EmployeesPage() {
           <Input
             label={
               modalMode === "add"
-                ? "PIN (4 số)"
+                ? "PIN (4–6 số)"
                 : "PIN mới (để trống = giữ PIN cũ)"
             }
             type="password"
             inputMode="numeric"
-            maxLength={4}
+            maxLength={6}
             value={form.pin}
             onChange={(e) =>
-              setField("pin", e.target.value.replace(/\D/g, "").slice(0, 4))
+              setField("pin", e.target.value.replace(/\D/g, "").slice(0, 6))
             }
             required={modalMode === "add"}
             placeholder="••••"

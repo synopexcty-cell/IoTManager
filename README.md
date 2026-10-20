@@ -6,7 +6,7 @@
 
 - Next.js 14 (App Router) + TypeScript + Tailwind CSS
 - MongoDB Atlas (collections `employees`, `attendance`)
-- Auth: chọn tên + PIN 4 số
+- Auth: chọn tên + PIN 4–6 số
 - Offline queue trong `localStorage` khi mất mạng
 
 ## Quick start
@@ -19,7 +19,7 @@ npm run dev
 
 Mở [http://localhost:3000](http://localhost:3000).
 
-DB trống lần đầu sẽ tạo admin mặc định: **Admin** / PIN **1234** (đổi ngay sau khi đăng nhập).
+DB trống lần đầu sẽ tạo admin mặc định: **Admin** / PIN **999999**.
 
 ## MongoDB
 

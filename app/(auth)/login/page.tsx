@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/Input";
 import { useToast } from "@/components/ui/Toast";
 import { listEmployees, verifyPin } from "@/lib/sheets";
 import type { Employee } from "@/lib/types";
+import { isValidPin } from "@/lib/utils";
 import { Fingerprint } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -44,8 +45,8 @@ export default function LoginPage() {
       setError("Vui lòng chọn tên của bạn");
       return;
     }
-    if (!/^\d{4}$/.test(pin)) {
-      setError("Mã PIN phải gồm 4 chữ số");
+    if (!isValidPin(pin)) {
+      setError("Mã PIN phải gồm 4–6 chữ số");
       return;
     }
 
@@ -92,7 +93,7 @@ export default function LoginPage() {
       <Card className="relative z-10 w-full max-w-md">
         <CardHeader>
           <CardTitle>Đăng nhập</CardTitle>
-          <CardDescription>Chọn tên và nhập mã PIN 4 số</CardDescription>
+          <CardDescription>Chọn tên và nhập mã PIN (4–6 số)</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -128,11 +129,11 @@ export default function LoginPage() {
               type="password"
               inputMode="numeric"
               autoComplete="current-password"
-              maxLength={4}
-              placeholder="••••"
+              maxLength={6}
+              placeholder="••••••"
               value={pin}
               onChange={(e) =>
-                setPin(e.target.value.replace(/\D/g, "").slice(0, 4))
+                setPin(e.target.value.replace(/\D/g, "").slice(0, 6))
               }
               error={error || undefined}
             />

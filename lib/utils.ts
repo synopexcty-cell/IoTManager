@@ -6,6 +6,11 @@ export function cn(...inputs: ClassValue[]) {
   return clsx(inputs);
 }
 
+/** PIN đăng nhập: 4–6 chữ số */
+export function isValidPin(pin: string): boolean {
+  return /^\d{4,6}$/.test(pin);
+}
+
 export function todayISO(): string {
   return format(new Date(), "yyyy-MM-dd");
 }

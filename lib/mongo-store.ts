@@ -5,7 +5,7 @@ import type {
   SheetsRequest,
   SheetsResponse,
 } from "./types";
-import { nowTime, todayISO } from "./utils";
+import { isValidPin, nowTime, todayISO } from "./utils";
 
 type EmpDoc = Employee & { _id?: unknown };
 type AttDoc = AttendanceRecord & { _id?: unknown };
@@ -22,37 +22,12 @@ function publicEmployee(emp: EmpDoc) {
   };
 }
 
-async function ensureIndexes() {
-  const db = await getDb();
-  await db.collection("employees").createIndex({ name: 1 }, { unique: true });
-  await db
-    .collection("employees")
-    .createIndex({ employeeCode: 1 }, { unique: true });
-  await db
-    .collection("attendance")
-    .createIndex({ employeeName: 1, date: 1 }, { unique: true });
-}
-
-let indexesReady = false;
-async function dbReady() {
-  const db = await getDb();
-  if (!indexesReady) {
-    try {
-      await ensureIndexes();
-    } catch {
-      /* index may already exist */
-    }
-    indexesReady = true;
-  }
-  return db;
-}
-
 /** MongoDB Atlas handlers */
 export async function mongoHandler<T>(
   request: SheetsRequest
 ): Promise<SheetsResponse<T>> {
   try {
-    const db = await dbReady();
+    const db = await getDb();
     const employees = db.collection<EmpDoc>("employees");
     const attendance = db.collection<AttDoc>("attendance");
     const { action, payload = {} } = request;
@@ -63,7 +38,7 @@ export async function mongoHandler<T>(
         if (count === 0) {
           await employees.insertOne({
             name: "Admin",
-            pin: "1234",
+            pin: "999999",
             role: "admin",
             active: true,
             employeeCode: "NV001",
@@ -159,8 +134,8 @@ export async function mongoHandler<T>(
         const phone = String(payload.phone || "").trim();
         const cccd = String(payload.cccd || "").trim();
         const address = String(payload.address || "").trim();
-        if (!name || !employeeCode || !/^\d{4}$/.test(pin)) {
-          return { ok: false, error: "Họ tên, mã NV và PIN 4 số là bắt buộc" };
+        if (!name || !employeeCode || !isValidPin(pin)) {
+          return { ok: false, error: "Họ tên, mã NV và PIN 4–6 số là bắt buộc" };
         }
         if (await employees.findOne({ name })) {
           return { ok: false, error: "Họ tên đã tồn tại" };
@@ -195,8 +170,8 @@ export async function mongoHandler<T>(
         if (!originalName || !name || !employeeCode) {
           return { ok: false, error: "Họ tên và mã nhân viên là bắt buộc" };
         }
-        if (pinRaw && !/^\d{4}$/.test(pinRaw)) {
-          return { ok: false, error: "PIN phải gồm 4 chữ số" };
+        if (pinRaw && !isValidPin(pinRaw)) {
+          return { ok: false, error: "PIN phải gồm 4–6 chữ số" };
         }
         const prev = await employees.findOne({ name: originalName });
         if (!prev) return { ok: false, error: "Không tìm thấy nhân viên" };
