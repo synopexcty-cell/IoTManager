@@ -14,6 +14,7 @@ const ALLOWED: SheetsAction[] = [
   "verifyPin",
   "checkIn",
   "checkOut",
+  "saveAttendance",
   "addEmployee",
   "importEmployees",
   "updateEmployee",

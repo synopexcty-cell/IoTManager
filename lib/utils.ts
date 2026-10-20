@@ -15,6 +15,17 @@ export function normalizeEmployeeCode(code: string): string {
   return code.trim().toUpperCase();
 }
 
+/** "8:05" → "08:05"; không hợp lệ → "" */
+export function normalizeTime(raw: unknown): string {
+  const s = String(raw ?? "").trim();
+  const m = /^(\d{1,2}):(\d{2})$/.exec(s);
+  if (!m) return "";
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (h > 23 || min > 59) return "";
+  return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+}
+
 function stripVi(s: string) {
   return s
     .toLowerCase()

@@ -11,8 +11,10 @@ import {
 } from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
 import {
+  colorsForMonth,
   contrastText,
   DEFAULT_COLUMN_COLORS,
+  monthColorKey,
   normalizeColumnColors,
   normalizeHexColor,
   WEEKDAY_LABELS,
@@ -20,7 +22,8 @@ import {
 } from "@/lib/column-colors";
 import { getQueue } from "@/lib/offline-queue";
 import { flushOfflineQueue, getSettings, updateSettings } from "@/lib/sheets";
-import type { ColumnColors } from "@/lib/types";
+import type { AppSettings, ColumnColors } from "@/lib/types";
+import { todayISO } from "@/lib/utils";
 import { AlertTriangle, Database, LogOut, Palette, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -45,11 +48,23 @@ export default function SettingsPage() {
   const [syncing, setSyncing] = useState(false);
   const [dbOk, setDbOk] = useState<boolean | null>(null);
   const [dbInfo, setDbInfo] = useState("");
+  const today = todayISO();
+  const [year, setYear] = useState(() => Number(today.slice(0, 4)));
+  const [month, setMonth] = useState(() => Number(today.slice(5, 7)));
+  const [settings, setSettings] = useState<AppSettings>({
+    columnColors: DEFAULT_COLUMN_COLORS,
+    monthColors: {},
+  });
   const [colors, setColors] = useState<ColumnColors>(DEFAULT_COLUMN_COLORS);
   const [savingColors, setSavingColors] = useState(false);
   const [colorsLoaded, setColorsLoaded] = useState(false);
 
   useEffect(() => {
+    if (user && user.role !== "admin") {
+      router.replace("/dashboard");
+      return;
+    }
+    if (!user) return;
     setQueueCount(getQueue().length);
     fetch("/api/sheets")
       .then(async (res) => {
@@ -68,9 +83,20 @@ export default function SettingsPage() {
         setDbInfo("Không gọi được API");
       });
     getSettings()
-      .then((s) => setColors(normalizeColumnColors(s.columnColors)))
+      .then((s) => {
+        const next: AppSettings = {
+          columnColors: normalizeColumnColors(s.columnColors),
+          monthColors: s.monthColors || {},
+        };
+        setSettings(next);
+      })
       .finally(() => setColorsLoaded(true));
-  }, []);
+  }, [user, router]);
+
+  useEffect(() => {
+    if (!colorsLoaded) return;
+    setColors(colorsForMonth(settings, year, month));
+  }, [year, month, settings, colorsLoaded]);
 
   const setWeekdayColor = (index: number, hex: string) => {
     setColors((prev) => {
@@ -84,13 +110,20 @@ export default function SettingsPage() {
     setSavingColors(true);
     try {
       const next = normalizeColumnColors(colors);
-      const res = await updateSettings({ columnColors: next });
+      const key = monthColorKey(year, month);
+      const res = await updateSettings({ columnColors: next, monthKey: key });
       if (!res.ok) {
         toast(res.error || "Không lưu được màu cột", "error");
         return;
       }
+      if (res.data) {
+        setSettings({
+          columnColors: normalizeColumnColors(res.data.columnColors),
+          monthColors: res.data.monthColors || {},
+        });
+      }
       setColors(next);
-      toast("Đã lưu màu cột lịch tháng", "success");
+      toast(`Đã lưu màu cột tháng ${month}/${year}`, "success");
     } finally {
       setSavingColors(false);
     }
@@ -122,6 +155,14 @@ export default function SettingsPage() {
     router.replace("/login");
   };
 
+  if (!user || user.role !== "admin") {
+    return (
+      <div className="flex justify-center py-20">
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <Card>
@@ -151,10 +192,45 @@ export default function SettingsPage() {
               Màu cột lịch tháng
             </CardTitle>
             <CardDescription>
-              Tùy chọn màu nền cho từng thứ trong tuần và cột Tổng. Màu này áp dụng trên trang Lịch sử.
+              Mỗi tháng có bộ màu riêng. Chọn tháng/năm rồi lưu — trang Lịch sử dùng đúng màu của tháng đang xem.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                aria-label="Tháng"
+                value={month}
+                onChange={(e) => setMonth(Number(e.target.value))}
+                className="h-11 min-h-[44px] rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                  <option key={m} value={m}>
+                    Tháng {m}
+                  </option>
+                ))}
+              </select>
+              <select
+                aria-label="Năm"
+                value={year}
+                onChange={(e) => setYear(Number(e.target.value))}
+                className="h-11 min-h-[44px] rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                {Array.from(
+                  { length: 6 },
+                  (_, i) => Number(today.slice(0, 4)) - 2 + i
+                ).map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+              <span className="text-sm text-neutral-500">
+                {settings.monthColors?.[monthColorKey(year, month)]
+                  ? "Đã có màu riêng"
+                  : "Chưa lưu — đang dùng mặc định"}
+              </span>
+            </div>
+
             <div className="overflow-x-auto">
               <div className="flex min-w-max overflow-hidden rounded-lg border border-neutral-200 text-center text-xs font-semibold">
                 {WEEKDAY_SHORT.map((label, i) => (
@@ -219,7 +295,7 @@ export default function SettingsPage() {
                 loading={savingColors}
                 disabled={!colorsLoaded}
               >
-                Lưu màu cột
+                Lưu màu tháng {month}/{year}
               </Button>
             </div>
           </CardContent>

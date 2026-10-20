@@ -1,6 +1,7 @@
 import {
   DEFAULT_COLUMN_COLORS,
   normalizeColumnColors,
+  normalizeMonthColors,
 } from "./column-colors";
 import { cacheGet, cacheInvalidate, cacheSet } from "./server-cache";
 import { friendlyMongoError, getDb } from "./mongodb";
@@ -14,6 +15,7 @@ import type {
 import {
   isValidPin,
   normalizeEmployeeCode,
+  normalizeTime,
   nowTime,
   parseBirthDate,
   parseGender,
@@ -27,6 +29,7 @@ const SETTINGS_TTL = 60_000;
 type SettingsDoc = {
   _id: string;
   columnColors?: unknown;
+  monthColors?: unknown;
 };
 
 const EMP_TTL = 30_000;
@@ -228,6 +231,38 @@ export async function mongoHandler<T>(
           ok: true,
           data: { ...existing, checkOut, status: "checked_out" } as T,
         };
+      }
+      case "saveAttendance": {
+        const name = String(payload.name || "").trim();
+        const date = String(payload.date || todayISO()).trim();
+        const checkIn = normalizeTime(payload.checkIn);
+        const checkOut = normalizeTime(payload.checkOut);
+        const note = String(payload.note || "").trim();
+        if (!name) return { ok: false, error: "Thiếu tên nhân viên" };
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > todayISO()) {
+          return { ok: false, error: "Ngày không hợp lệ (không được sau hôm nay)" };
+        }
+        if (!checkIn) {
+          return { ok: false, error: "Cần giờ vào (HH:mm)" };
+        }
+        const emp = await employees.findOne({ name, active: true });
+        if (!emp) return { ok: false, error: "Không tìm thấy nhân viên" };
+        const record: AttendanceRecord = {
+          timestamp: new Date().toISOString(),
+          employeeName: name,
+          date,
+          checkIn,
+          checkOut,
+          status: checkOut ? "checked_out" : "checked_in",
+          note,
+        };
+        await attendance.updateOne(
+          { employeeName: name, date },
+          { $set: record },
+          { upsert: true }
+        );
+        cacheInvalidate("attendance:");
+        return { ok: true, data: record as T };
       }
       case "addEmployee": {
         const name = String(payload.name || "").trim();
@@ -434,18 +469,32 @@ export async function mongoHandler<T>(
           columnColors: doc
             ? normalizeColumnColors(doc.columnColors)
             : DEFAULT_COLUMN_COLORS,
+          monthColors: normalizeMonthColors(doc?.monthColors),
         };
         cacheSet(SETTINGS_CACHE, data, SETTINGS_TTL);
         return { ok: true, data: data as T };
       }
       case "updateSettings": {
-        const columnColors = normalizeColumnColors(payload.columnColors);
+        const doc = await settings.findOne({ _id: SETTINGS_ID });
+        let columnColors = doc
+          ? normalizeColumnColors(doc.columnColors)
+          : DEFAULT_COLUMN_COLORS;
+        const monthColors = normalizeMonthColors(doc?.monthColors);
+        const monthKey = String(payload.monthKey || "").trim();
+        if (monthKey) {
+          if (!/^\d{4}-\d{2}$/.test(monthKey)) {
+            return { ok: false, error: "Tháng không hợp lệ" };
+          }
+          monthColors[monthKey] = normalizeColumnColors(payload.columnColors);
+        } else if (payload.columnColors) {
+          columnColors = normalizeColumnColors(payload.columnColors);
+        }
         await settings.updateOne(
           { _id: SETTINGS_ID },
-          { $set: { columnColors } },
+          { $set: { columnColors, monthColors } },
           { upsert: true }
         );
-        const data: AppSettings = { columnColors };
+        const data: AppSettings = { columnColors, monthColors };
         cacheInvalidate(SETTINGS_CACHE);
         cacheSet(SETTINGS_CACHE, data, SETTINGS_TTL);
         return { ok: true, data: data as T };

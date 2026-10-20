@@ -1,4 +1,8 @@
-import type { ColumnColors } from "./types";
+import type { AppSettings, ColumnColors } from "./types";
+
+export function monthColorKey(year: number, month: number): string {
+  return `${year}-${String(month).padStart(2, "0")}`;
+}
 
 /** 0 = Chủ nhật … 6 = Thứ 7 */
 export const WEEKDAY_SHORT = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"] as const;
@@ -52,6 +56,28 @@ export function normalizeColumnColors(raw: unknown): ColumnColors {
     ),
     total: normalizeHexColor(src.total, DEFAULT_COLUMN_COLORS.total),
   };
+}
+
+export function normalizeMonthColors(
+  raw: unknown
+): Record<string, ColumnColors> {
+  if (!raw || typeof raw !== "object") return {};
+  const out: Record<string, ColumnColors> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!/^\d{4}-\d{2}$/.test(key)) continue;
+    out[key] = normalizeColumnColors(value);
+  }
+  return out;
+}
+
+export function colorsForMonth(
+  settings: Pick<AppSettings, "columnColors" | "monthColors">,
+  year: number,
+  month: number
+): ColumnColors {
+  const saved = settings.monthColors?.[monthColorKey(year, month)];
+  if (saved) return normalizeColumnColors(saved);
+  return normalizeColumnColors(settings.columnColors);
 }
 
 /** Chữ đen/trắng tùy độ sáng nền */

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { TableSkeleton } from "@/components/ui/Skeleton";
-import { DEFAULT_COLUMN_COLORS } from "@/lib/column-colors";
+import { colorsForMonth, DEFAULT_COLUMN_COLORS } from "@/lib/column-colors";
 import { getSettings, listAttendance, listEmployees } from "@/lib/sheets";
 import type { AttendanceRecord, ColumnColors, Employee } from "@/lib/types";
 import { monthRange, todayISO } from "@/lib/utils";
@@ -52,11 +52,11 @@ export default function HistoryPage() {
         : emps.filter((e) => e.name === user.name);
       setEmployees(list);
       setRecords(att);
-      setColumnColors(settings.columnColors);
+      setColumnColors(colorsForMonth(settings, year, month));
     } finally {
       setLoading(false);
     }
-  }, [user, from, to, isAdmin]);
+  }, [user, from, to, isAdmin, year, month]);
 
   useEffect(() => {
     load();

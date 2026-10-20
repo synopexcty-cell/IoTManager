@@ -10,50 +10,88 @@ import {
   CardTitle,
 } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Input } from "@/components/ui/Input";
 import { CardSkeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
-import { checkIn, checkOut, listAttendance } from "@/lib/sheets";
-import type { AttendanceRecord } from "@/lib/types";
+import {
+  checkIn,
+  checkOut,
+  listAttendance,
+  listEmployees,
+  saveAttendance,
+} from "@/lib/sheets";
+import type { AttendanceRecord, Employee } from "@/lib/types";
 import {
   addDaysISO,
   formatDateVi,
   formatShortDate,
+  normalizeTime,
+  nowTime,
   statusLabel,
   todayISO,
 } from "@/lib/utils";
-import { CalendarDays, LogIn, LogOut } from "lucide-react";
+import { CalendarDays, LogIn, LogOut, Save } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 export default function AttendancePage() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const isAdmin = user?.role === "admin";
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [targetName, setTargetName] = useState("");
+  const [date, setDate] = useState(() => todayISO());
+  const [timeIn, setTimeIn] = useState("");
+  const [timeOut, setTimeOut] = useState("");
+  const [note, setNote] = useState("");
   const [today, setToday] = useState<AttendanceRecord | null>(null);
   const [history, setHistory] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<"in" | "out" | null>(null);
+  const [busy, setBusy] = useState<"in" | "out" | "save" | null>(null);
 
-  const load = useCallback(async () => {
-    if (!user) return;
-    const date = todayISO();
-    const fromStr = addDaysISO(date, -6);
-
-    const [todayRecords, week] = await Promise.all([
-      listAttendance({ name: user.name, from: date, to: date }),
-      listAttendance({ name: user.name, from: fromStr, to: date }),
-    ]);
-    setToday(todayRecords[0] ?? null);
-    setHistory(week);
-  }, [user]);
+  const subjectName = isAdmin ? targetName : user?.name || "";
 
   useEffect(() => {
+    if (!isAdmin || !user) return;
+    listEmployees().then((list) => {
+      const active = list.filter((e) => e.active);
+      setEmployees(active);
+      setTargetName((prev) => prev || user.name);
+    });
+  }, [isAdmin, user]);
+
+  const load = useCallback(async () => {
+    if (!subjectName) return;
+    const fromStr = addDaysISO(date, -6);
+    const [dayRecords, week] = await Promise.all([
+      listAttendance({ name: subjectName, from: date, to: date }, { force: true }),
+      listAttendance({ name: subjectName, from: fromStr, to: date }, { force: true }),
+    ]);
+    const rec = dayRecords[0] ?? null;
+    setToday(rec);
+    setHistory(week);
+    setTimeIn(rec?.checkIn || "");
+    setTimeOut(rec?.checkOut || "");
+    setNote(rec?.note || "");
+  }, [subjectName, date]);
+
+  useEffect(() => {
+    if (!subjectName) return;
     load().finally(() => setLoading(false));
-  }, [load]);
+  }, [load, subjectName]);
 
   const handleCheckIn = async () => {
-    if (!user) return;
+    if (!user || !subjectName) return;
     setBusy("in");
     try {
-      const res = await checkIn(user.name);
+      const res = isAdmin
+        ? await saveAttendance({
+            name: subjectName,
+            date,
+            checkIn: normalizeTime(timeIn) || nowTime(),
+            checkOut: normalizeTime(timeOut) || today?.checkOut || "",
+            note,
+          })
+        : await checkIn(user.name);
       if (res.ok) {
         toast("Check-in thành công!", "success");
         await load();
@@ -66,15 +104,50 @@ export default function AttendancePage() {
   };
 
   const handleCheckOut = async () => {
-    if (!user) return;
+    if (!user || !subjectName) return;
     setBusy("out");
     try {
-      const res = await checkOut(user.name);
+      const res = isAdmin
+        ? await saveAttendance({
+            name: subjectName,
+            date,
+            checkIn: normalizeTime(timeIn) || today?.checkIn || "",
+            checkOut: normalizeTime(timeOut) || nowTime(),
+            note,
+          })
+        : await checkOut(user.name);
       if (res.ok) {
         toast("Check-out thành công!", "success");
         await load();
       } else {
         toast(res.error || "Check-out thất bại", "error");
+      }
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!subjectName) return;
+    const inTime = normalizeTime(timeIn);
+    if (!inTime) {
+      toast("Nhập giờ vào (HH:mm)", "error");
+      return;
+    }
+    setBusy("save");
+    try {
+      const res = await saveAttendance({
+        name: subjectName,
+        date,
+        checkIn: inTime,
+        checkOut: normalizeTime(timeOut),
+        note,
+      });
+      if (res.ok) {
+        toast("Đã lưu chấm công", "success");
+        await load();
+      } else {
+        toast(res.error || "Lưu thất bại", "error");
       }
     } finally {
       setBusy(null);
@@ -90,20 +163,76 @@ export default function AttendancePage() {
     );
   }
 
-  const canCheckIn = !today?.checkIn;
-  const canCheckOut = Boolean(today?.checkIn && !today?.checkOut);
+  const canCheckIn = isAdmin || !today?.checkIn;
+  const canCheckOut = isAdmin
+    ? Boolean(normalizeTime(timeIn) || today?.checkIn)
+    : Boolean(today?.checkIn && !today?.checkOut);
   const status = today ? today.status : "absent";
+  const headingDate = isAdmin ? date : todayISO();
 
   return (
     <div className="mx-auto max-w-lg space-y-6">
       <Card className="overflow-hidden">
         <div className="bg-primary px-5 py-4 text-white">
-          <p className="text-sm text-red-100">Hôm nay</p>
+          <p className="text-sm text-red-100">
+            {isAdmin ? "Chấm công (quản trị có thể ghi hộ / bù ngày)" : "Hôm nay"}
+          </p>
           <p className="text-lg font-semibold capitalize">
-            {formatDateVi(todayISO())}
+            {formatDateVi(headingDate)}
           </p>
         </div>
         <CardContent className="space-y-5 pt-5">
+          {isAdmin && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5 sm:col-span-2">
+                <label
+                  htmlFor="att-emp"
+                  className="text-sm font-medium text-neutral-800"
+                >
+                  Nhân viên
+                </label>
+                <select
+                  id="att-emp"
+                  value={targetName}
+                  onChange={(e) => setTargetName(e.target.value)}
+                  className="h-11 min-h-[44px] w-full rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                >
+                  {employees.map((emp) => (
+                    <option key={emp.name} value={emp.name}>
+                      {emp.employeeCode ? `${emp.employeeCode} — ` : ""}
+                      {emp.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <Input
+                label="Ngày"
+                type="date"
+                max={todayISO()}
+                value={date}
+                onChange={(e) => setDate(e.target.value || todayISO())}
+              />
+              <Input
+                label="Ghi chú"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Không bắt buộc"
+              />
+              <Input
+                label="Giờ vào"
+                type="time"
+                value={timeIn}
+                onChange={(e) => setTimeIn(e.target.value)}
+              />
+              <Input
+                label="Giờ ra"
+                type="time"
+                value={timeOut}
+                onChange={(e) => setTimeOut(e.target.value)}
+              />
+            </div>
+          )}
+
           <div className="flex items-center justify-between rounded-lg bg-neutral-50 px-4 py-3">
             <span className="text-sm text-neutral-500">Trạng thái</span>
             <span
@@ -136,30 +265,44 @@ export default function AttendancePage() {
             </div>
           </div>
 
-          <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] z-10 grid grid-cols-1 gap-3 sm:static sm:grid-cols-2 lg:bottom-0">
-            <Button
-              size="lg"
-              onClick={handleCheckIn}
-              disabled={!canCheckIn}
-              loading={busy === "in"}
-              className="w-full text-base"
-              aria-label="Check in"
-            >
-              <LogIn className="h-5 w-5" />
-              Check in
-            </Button>
-            <Button
-              size="lg"
-              variant="secondary"
-              onClick={handleCheckOut}
-              disabled={!canCheckOut}
-              loading={busy === "out"}
-              className="w-full text-base"
-              aria-label="Check out"
-            >
-              <LogOut className="h-5 w-5" />
-              Check out
-            </Button>
+          <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] z-10 grid grid-cols-1 gap-3 sm:static lg:bottom-0">
+            {isAdmin && (
+              <Button
+                size="lg"
+                onClick={handleSave}
+                loading={busy === "save"}
+                className="w-full text-base"
+              >
+                <Save className="h-5 w-5" />
+                Lưu chấm công
+              </Button>
+            )}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Button
+                size="lg"
+                onClick={handleCheckIn}
+                disabled={!canCheckIn || !subjectName}
+                loading={busy === "in"}
+                className="w-full text-base"
+                aria-label="Check in"
+                variant={isAdmin ? "outline" : "primary"}
+              >
+                <LogIn className="h-5 w-5" />
+                Check in
+              </Button>
+              <Button
+                size="lg"
+                variant="secondary"
+                onClick={handleCheckOut}
+                disabled={!canCheckOut || !subjectName}
+                loading={busy === "out"}
+                className="w-full text-base"
+                aria-label="Check out"
+              >
+                <LogOut className="h-5 w-5" />
+                Check out
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -170,14 +313,18 @@ export default function AttendancePage() {
             <CalendarDays className="h-5 w-5 text-neutral-400" />
             7 ngày gần nhất
           </CardTitle>
-          <CardDescription>Lịch sử chấm công của bạn</CardDescription>
+          <CardDescription>
+            {isAdmin
+              ? `Lịch sử chấm công của ${subjectName || "nhân viên"}`
+              : "Lịch sử chấm công của bạn"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {history.length === 0 ? (
             <EmptyState
               icon={CalendarDays}
               title="Chưa có lịch sử"
-              description="Khi bạn chấm công, dữ liệu sẽ hiện ở đây."
+              description="Khi chấm công, dữ liệu sẽ hiện ở đây."
               className="border-0 py-8 shadow-none"
             />
           ) : (

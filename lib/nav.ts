@@ -19,11 +19,19 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/attendance", label: "Chấm công", icon: Clock },
   { href: "/history", label: "Lịch sử", icon: History },
   { href: "/employees", label: "Nhân viên", icon: Users, adminOnly: true },
-  { href: "/settings", label: "Cài đặt", icon: Settings },
+  { href: "/settings", label: "Cài đặt", icon: Settings, adminOnly: true },
 ];
 
 export function getNavItems(isAdmin: boolean): NavItem[] {
   return NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin);
+}
+
+export function isAdminOnlyPath(pathname: string): boolean {
+  return NAV_ITEMS.some(
+    (item) =>
+      item.adminOnly &&
+      (pathname === item.href || pathname.startsWith(item.href + "/"))
+  );
 }
 
 export function getPageTitle(pathname: string): string {

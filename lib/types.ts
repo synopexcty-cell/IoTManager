@@ -47,7 +47,10 @@ export interface ColumnColors {
 }
 
 export interface AppSettings {
+  /** Màu mặc định khi tháng chưa được cấu hình */
   columnColors: ColumnColors;
+  /** key = yyyy-MM */
+  monthColors?: Record<string, ColumnColors>;
 }
 
 export type SheetsAction =
@@ -55,6 +58,7 @@ export type SheetsAction =
   | "listAttendance"
   | "checkIn"
   | "checkOut"
+  | "saveAttendance"
   | "addEmployee"
   | "importEmployees"
   | "updateEmployee"

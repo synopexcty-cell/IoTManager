@@ -173,6 +173,21 @@ export async function checkOut(name: string) {
   return res;
 }
 
+export async function saveAttendance(payload: {
+  name: string;
+  date: string;
+  checkIn: string;
+  checkOut?: string;
+  note?: string;
+}) {
+  const res = await callSheets<AttendanceRecord>(
+    { action: "saveAttendance", payload },
+    { queueOnFail: true }
+  );
+  if (res.ok) clientCacheInvalidateAttendance();
+  return res;
+}
+
 export async function addEmployee(payload: {
   name: string;
   pin: string;
@@ -286,14 +301,18 @@ export async function getSettings(options?: {
   const res = await callSheets<AppSettings>({ action: "getSettings" });
   const data: AppSettings =
     res.ok && res.data
-      ? res.data
-      : { columnColors: DEFAULT_COLUMN_COLORS };
+      ? {
+          columnColors: res.data.columnColors || DEFAULT_COLUMN_COLORS,
+          monthColors: res.data.monthColors || {},
+        }
+      : { columnColors: DEFAULT_COLUMN_COLORS, monthColors: {} };
   if (res.ok) clientCacheSetSettings(data);
   return data;
 }
 
 export async function updateSettings(payload: {
   columnColors: AppSettings["columnColors"];
+  monthKey?: string;
 }) {
   const res = await callSheets<AppSettings>({
     action: "updateSettings",

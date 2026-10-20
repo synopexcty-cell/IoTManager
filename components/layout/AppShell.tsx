@@ -2,9 +2,10 @@
 
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useToast } from "@/components/ui/Toast";
+import { isAdminOnlyPath } from "@/lib/nav";
 import { flushOfflineQueue, listEmployees } from "@/lib/sheets";
 import { cn } from "@/lib/utils";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { BottomNav } from "./BottomNav";
 import { Sidebar } from "./Sidebar";
@@ -15,6 +16,7 @@ const SIDEBAR_KEY = "chamcong_sidebar_collapsed";
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const { toast } = useToast();
   const [collapsed, setCollapsed] = useState(false);
   const [ready, setReady] = useState(false);
@@ -37,8 +39,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
     if (user.mustChangePassword) {
       router.replace("/change-password");
+      return;
     }
-  }, [loading, user, router]);
+    if (user.role !== "admin" && isAdminOnlyPath(pathname)) {
+      router.replace("/dashboard");
+    }
+  }, [loading, user, router, pathname]);
 
   useEffect(() => {
     if (!user) return;
@@ -72,6 +78,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   const isAdmin = user.role === "admin";
+  const blockPage = !isAdmin && isAdminOnlyPath(pathname);
 
   return (
     <div className="min-h-screen bg-neutral-50">
@@ -89,7 +96,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           collapsed && "lg:pl-sidebar-collapsed"
         )}
       >
-        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">{children}</div>
+        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+          {blockPage ? (
+            <div className="flex justify-center py-20">
+              <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            </div>
+          ) : (
+            children
+          )}
+        </div>
       </main>
       <BottomNav isAdmin={isAdmin} />
     </div>
