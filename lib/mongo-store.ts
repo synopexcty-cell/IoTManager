@@ -5,11 +5,13 @@ import {
 } from "./column-colors";
 import { cacheGet, cacheInvalidate, cacheSet } from "./server-cache";
 import { friendlyMongoError, getDb } from "./mongodb";
+import { parseMealRecord } from "./meal";
 import { parseOtValue } from "./ot";
 import type {
   AppSettings,
   AttendanceRecord,
   Employee,
+  MealRecord,
   OtRecord,
   SheetsRequest,
   SheetsResponse,
@@ -40,6 +42,7 @@ const ATT_TTL = 15_000;
 type EmpDoc = Employee & { _id?: unknown };
 type AttDoc = AttendanceRecord & { _id?: unknown };
 type OtDoc = OtRecord & { _id?: unknown };
+type MealDoc = MealRecord & { _id?: unknown };
 
 function publicEmployee(emp: EmpDoc) {
   return {
@@ -66,6 +69,7 @@ export async function mongoHandler<T>(
     const employees = db.collection<EmpDoc>("employees");
     const attendance = db.collection<AttDoc>("attendance");
     const overtime = db.collection<OtDoc>("overtime");
+    const meals = db.collection<MealDoc>("meals");
     const settings = db.collection<SettingsDoc>("settings");
     const { action, payload = {} } = request;
 
@@ -524,6 +528,68 @@ export async function mongoHandler<T>(
           { upsert: true }
         );
         cacheInvalidate("ot:");
+        return { ok: true, data: record as T };
+      }
+      case "listMeals": {
+        const nameKey = payload.name ? String(payload.name) : "";
+        const fromKey = payload.from ? String(payload.from) : "";
+        const toKey = payload.to ? String(payload.to) : "";
+        const cacheKey = `meals:${nameKey}:${fromKey}:${toKey}`;
+        const cached = cacheGet<MealRecord[]>(cacheKey);
+        if (cached) return { ok: true, data: cached as T };
+
+        const filter: {
+          employeeName?: string;
+          date?: { $gte?: string; $lte?: string };
+        } = {};
+        if (payload.name) filter.employeeName = String(payload.name);
+        if (payload.from || payload.to) {
+          filter.date = {};
+          if (payload.from) filter.date.$gte = String(payload.from);
+          if (payload.to) filter.date.$lte = String(payload.to);
+        }
+        const rows = await meals
+          .find(filter)
+          .sort({ date: 1, employeeName: 1 })
+          .limit(2000)
+          .toArray();
+        const data = rows.map(({ _id, ...rest }) => rest) as MealRecord[];
+        cacheSet(cacheKey, data, ATT_TTL);
+        return { ok: true, data: data as T };
+      }
+      case "saveMeal": {
+        const name = String(payload.name || payload.employeeName || "").trim();
+        const date = String(payload.date || "").trim();
+        const { lunch, dinner } = parseMealRecord(payload);
+        if (!name) return { ok: false, error: "Thiếu tên nhân viên" };
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+          return { ok: false, error: "Ngày không hợp lệ" };
+        }
+        const emp = await employees.findOne({ name, active: true });
+        if (!emp) return { ok: false, error: "Không tìm thấy nhân viên" };
+
+        if (!lunch && !dinner) {
+          await meals.deleteOne({ employeeName: name, date });
+          cacheInvalidate("meals:");
+          return {
+            ok: true,
+            data: { employeeName: name, date, lunch: false, dinner: false } as T,
+          };
+        }
+
+        const record: MealRecord = {
+          employeeName: name,
+          date,
+          lunch,
+          dinner,
+          updatedAt: new Date().toISOString(),
+        };
+        await meals.updateOne(
+          { employeeName: name, date },
+          { $set: record },
+          { upsert: true }
+        );
+        cacheInvalidate("meals:");
         return { ok: true, data: record as T };
       }
       case "getSettings": {

@@ -1,15 +1,18 @@
 import {
   clientCacheGetAttendance,
   clientCacheGetEmployees,
+  clientCacheGetMeals,
   clientCacheGetOt,
   clientCacheGetSettings,
   clientCacheInvalidateAll,
   clientCacheInvalidateAttendance,
   clientCacheInvalidateEmployees,
+  clientCacheInvalidateMeals,
   clientCacheInvalidateOt,
   clientCacheInvalidateSettings,
   clientCacheSetAttendance,
   clientCacheSetEmployees,
+  clientCacheSetMeals,
   clientCacheSetOt,
   clientCacheSetSettings,
 } from "./client-cache";
@@ -19,6 +22,7 @@ import type {
   AppSettings,
   AttendanceRecord,
   Employee,
+  MealRecord,
   OtRecord,
   SheetsRequest,
   SheetsResponse,
@@ -209,6 +213,42 @@ export async function saveOt(payload: {
     { queueOnFail: true }
   );
   if (res.ok) clientCacheInvalidateOt();
+  return res;
+}
+
+export async function listMeals(
+  filters?: {
+    name?: string;
+    from?: string;
+    to?: string;
+  },
+  options?: { force?: boolean }
+): Promise<MealRecord[]> {
+  const key = `${filters?.name || ""}|${filters?.from || ""}|${filters?.to || ""}`;
+  if (!options?.force) {
+    const cached = clientCacheGetMeals<MealRecord[]>(key);
+    if (cached) return cached;
+  }
+  const res = await callSheets<MealRecord[]>({
+    action: "listMeals",
+    payload: filters,
+  });
+  const data = res.ok && res.data ? res.data : [];
+  if (res.ok) clientCacheSetMeals(key, data);
+  return data;
+}
+
+export async function saveMeal(payload: {
+  name: string;
+  date: string;
+  lunch: boolean;
+  dinner: boolean;
+}) {
+  const res = await callSheets<MealRecord>(
+    { action: "saveMeal", payload },
+    { queueOnFail: true }
+  );
+  if (res.ok) clientCacheInvalidateMeals();
   return res;
 }
 

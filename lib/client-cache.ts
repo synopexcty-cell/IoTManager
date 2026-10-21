@@ -62,6 +62,20 @@ export function clientCacheInvalidateOt() {
   });
 }
 
+export function clientCacheGetMeals<T>(key: string): T | undefined {
+  return get<T>(`meals:${key}`);
+}
+
+export function clientCacheSetMeals(key: string, value: unknown) {
+  set(`meals:${key}`, value, ATT_TTL);
+}
+
+export function clientCacheInvalidateMeals() {
+  Array.from(mem.keys()).forEach((key) => {
+    if (key.startsWith("meals:")) mem.delete(key);
+  });
+}
+
 const SETTINGS_KEY = "settings:app";
 const SETTINGS_TTL = 60_000;
 

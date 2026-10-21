@@ -5,6 +5,7 @@ import {
   Settings,
   Timer,
   Users,
+  Utensils,
   type LucideIcon,
 } from "lucide-react";
 
@@ -20,6 +21,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/attendance", label: "Chấm công", icon: Clock },
   { href: "/history", label: "Lịch sử", icon: History },
   { href: "/ot", label: "Lịch OT", icon: Timer },
+  { href: "/meals", label: "Ăn ngoài", icon: Utensils },
   { href: "/employees", label: "Nhân viên", icon: Users, adminOnly: true },
   { href: "/settings", label: "Cài đặt", icon: Settings, adminOnly: true },
 ];

@@ -41,6 +41,16 @@ export interface OtRecord {
   updatedAt: string;
 }
 
+export interface MealRecord {
+  employeeName: string;
+  date: string; // yyyy-MM-dd
+  /** Ăn trưa */
+  lunch: boolean;
+  /** Ăn chiều */
+  dinner: boolean;
+  updatedAt: string;
+}
+
 export interface AuthUser {
   name: string;
   role: Role;
@@ -71,6 +81,8 @@ export type SheetsAction =
   | "saveAttendance"
   | "listOt"
   | "saveOt"
+  | "listMeals"
+  | "saveMeal"
   | "addEmployee"
   | "importEmployees"
   | "updateEmployee"
