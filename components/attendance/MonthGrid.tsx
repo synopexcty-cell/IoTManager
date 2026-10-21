@@ -8,7 +8,7 @@ import {
 } from "@/lib/column-colors";
 import { formatOtDisplay } from "@/lib/ot";
 import type { AttendanceRecord, ColumnColors, Employee } from "@/lib/types";
-import { cn, daysInMonth, weekdayOf, workedHours } from "@/lib/utils";
+import { cn, daysInMonth, todayISO, weekdayOf, workedHours } from "@/lib/utils";
 import { useEffect, useRef, useState } from "react";
 
 type CellValue = number | "P" | "/" | string | undefined;
@@ -80,6 +80,11 @@ export function MonthGrid({
   const days = Array.from({ length: lastDay }, (_, i) => i + 1);
   const mm = String(month).padStart(2, "0");
   const heading = title || `Lịch chấm công — Tháng ${month}/${year}`;
+  const today = todayISO();
+  const todayDay = today.startsWith(`${year}-${mm}-`)
+    ? Number(today.slice(8, 10))
+    : 0;
+  const todayRing = "relative z-[1] shadow-[inset_0_0_0_3px_#DC2626]";
 
   const byEmpDate = new Map<string, AttendanceRecord>();
   for (const r of records || []) {
@@ -161,19 +166,32 @@ export function MonthGrid({
               </th>
               {days.map((day) => {
                 const bg = weekdayFill(columnColors, year, month, day);
+                const isToday = day === todayDay;
                 return (
                   <th
                     key={`d-${day}`}
                     className={cn(
                       th,
                       "w-11 min-w-[44px]",
+                      isToday && todayRing,
                       onPaintDay && "cursor-pointer hover:ring-2 hover:ring-primary"
                     )}
                     style={{ backgroundColor: bg, color: contrastText(bg) }}
-                    title={onPaintDay ? `Tô ngày ${day}` : undefined}
+                    title={
+                      isToday
+                        ? "Hôm nay"
+                        : onPaintDay
+                          ? `Tô ngày ${day}`
+                          : undefined
+                    }
                     onClick={onPaintDay ? () => onPaintDay(day) : undefined}
                   >
                     {day}
+                    {isToday && (
+                      <span className="mt-0.5 block text-[9px] font-extrabold leading-none text-primary">
+                        NOW
+                      </span>
+                    )}
                   </th>
                 );
               })}
@@ -201,16 +219,24 @@ export function MonthGrid({
               </th>
               {days.map((day) => {
                 const bg = weekdayFill(columnColors, year, month, day);
+                const isToday = day === todayDay;
                 return (
                   <th
                     key={`w-${day}`}
                     className={cn(
                       th,
                       "w-11 min-w-[44px]",
+                      isToday && todayRing,
                       onPaintDay && "cursor-pointer hover:ring-2 hover:ring-primary"
                     )}
                     style={{ backgroundColor: bg, color: contrastText(bg) }}
-                    title={onPaintDay ? `Tô ngày ${day}` : undefined}
+                    title={
+                      isToday
+                        ? "Hôm nay"
+                        : onPaintDay
+                          ? `Tô ngày ${day}`
+                          : undefined
+                    }
                     onClick={onPaintDay ? () => onPaintDay(day) : undefined}
                   >
                     {WEEKDAY_SHORT[weekdayOf(year, month, day)]}
@@ -265,6 +291,7 @@ export function MonthGrid({
                     editing?.name === emp.name && editing.day === day;
                   const allow =
                     editable && (!canEditName || canEditName(emp.name));
+                  const isToday = day === todayDay;
                   return (
                     <td
                       key={`${emp.name}-${day}`}
@@ -272,6 +299,7 @@ export function MonthGrid({
                         td,
                         "tabular-nums",
                         leave && "font-bold",
+                        isToday && todayRing,
                         (allow || onPaintDay) &&
                           "cursor-pointer hover:ring-1 hover:ring-primary"
                       )}
@@ -279,7 +307,13 @@ export function MonthGrid({
                         backgroundColor: bg,
                         color: leave ? "#ffffff" : contrastText(bg),
                       }}
-                      title={onPaintDay ? `Tô ngày ${day}` : undefined}
+                      title={
+                        isToday
+                          ? "Hôm nay"
+                          : onPaintDay
+                            ? `Tô ngày ${day}`
+                            : undefined
+                      }
                       onClick={() => {
                         if (allow) startEdit(emp.name, day, value);
                         else onPaintDay?.(day);
@@ -335,16 +369,24 @@ export function MonthGrid({
                   (r) => typeof r.cells[day - 1] === "number"
                 ).length;
                 const bg = weekdayFill(columnColors, year, month, day);
+                const isToday = day === todayDay;
                 return (
                   <td
                     key={`t-${day}`}
                     className={cn(
                       td,
                       "font-bold tabular-nums",
+                      isToday && todayRing,
                       onPaintDay && "cursor-pointer hover:ring-1 hover:ring-primary"
                     )}
                     style={{ backgroundColor: bg, color: contrastText(bg) }}
-                    title={onPaintDay ? `Tô ngày ${day}` : undefined}
+                    title={
+                      isToday
+                        ? "Hôm nay"
+                        : onPaintDay
+                          ? `Tô ngày ${day}`
+                          : undefined
+                    }
                     onClick={onPaintDay ? () => onPaintDay(day) : undefined}
                   >
                     {count || ""}
