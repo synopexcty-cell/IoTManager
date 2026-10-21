@@ -234,7 +234,7 @@ export default function SettingsPage() {
               Màu cột lịch tháng
             </CardTitle>
             <CardDescription>
-              Chọn tháng, chọn màu, rồi bấm vào từng cột ngày trên bảng (giống Lịch sử / Lịch OT). T7 tuần này có thể khác T7 tuần kia; lễ chỉ tô đúng ngày đó.
+              Chọn tháng, chọn màu, rồi bấm vào từng cột ngày trên bảng (giống Công SIFLEX / Lịch OT). T7 tuần này có thể khác T7 tuần kia; lễ chỉ tô đúng ngày đó.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

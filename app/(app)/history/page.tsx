@@ -154,6 +154,7 @@ export default function HistoryPage() {
           employees={employees}
           records={records}
           columnColors={columnColors}
+          title={`Công SIFLEX — Tháng ${month}/${year}`}
         />
       )}
     </div>

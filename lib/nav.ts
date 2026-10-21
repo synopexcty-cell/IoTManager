@@ -19,7 +19,7 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/attendance", label: "Chấm công", icon: Clock },
-  { href: "/history", label: "Lịch sử", icon: History },
+  { href: "/history", label: "Công SIFLEX", icon: History },
   { href: "/ot", label: "Lịch OT", icon: Timer },
   { href: "/meals", label: "Ăn ngoài", icon: Utensils },
   { href: "/employees", label: "Nhân viên", icon: Users, adminOnly: true },
