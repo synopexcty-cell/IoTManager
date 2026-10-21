@@ -84,7 +84,13 @@ export function MonthGrid({
   const todayDay = today.startsWith(`${year}-${mm}-`)
     ? Number(today.slice(8, 10))
     : 0;
-  const todayRing = "relative z-[1] shadow-[inset_0_0_0_3px_#DC2626]";
+  /** Một khung cột: chỉ trái/phải giữa các ô; nắp trên header, đáy footer */
+  const todayEdge =
+    "relative z-[1] shadow-[inset_3px_0_0_#DC2626,inset_-3px_0_0_#DC2626]";
+  const todayTop =
+    "relative z-[1] shadow-[inset_3px_0_0_#DC2626,inset_-3px_0_0_#DC2626,inset_0_3px_0_#DC2626]";
+  const todayBottom =
+    "relative z-[1] shadow-[inset_3px_0_0_#DC2626,inset_-3px_0_0_#DC2626,inset_0_-3px_0_#DC2626]";
 
   const byEmpDate = new Map<string, AttendanceRecord>();
   for (const r of records || []) {
@@ -173,7 +179,7 @@ export function MonthGrid({
                     className={cn(
                       th,
                       "w-11 min-w-[44px]",
-                      isToday && todayRing,
+                      isToday && todayTop,
                       onPaintDay && "cursor-pointer hover:ring-2 hover:ring-primary"
                     )}
                     style={{ backgroundColor: bg, color: contrastText(bg) }}
@@ -226,7 +232,7 @@ export function MonthGrid({
                     className={cn(
                       th,
                       "w-11 min-w-[44px]",
-                      isToday && todayRing,
+                      isToday && todayEdge,
                       onPaintDay && "cursor-pointer hover:ring-2 hover:ring-primary"
                     )}
                     style={{ backgroundColor: bg, color: contrastText(bg) }}
@@ -299,7 +305,7 @@ export function MonthGrid({
                         td,
                         "tabular-nums",
                         leave && "font-bold",
-                        isToday && todayRing,
+                        isToday && todayEdge,
                         (allow || onPaintDay) &&
                           "cursor-pointer hover:ring-1 hover:ring-primary"
                       )}
@@ -376,7 +382,7 @@ export function MonthGrid({
                     className={cn(
                       td,
                       "font-bold tabular-nums",
-                      isToday && todayRing,
+                      isToday && todayBottom,
                       onPaintDay && "cursor-pointer hover:ring-1 hover:ring-primary"
                     )}
                     style={{ backgroundColor: bg, color: contrastText(bg) }}
