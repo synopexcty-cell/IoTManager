@@ -58,7 +58,7 @@ export function TableHead({
   return (
     <th
       className={cn(
-        "h-11 px-4 text-left align-middle text-xs font-semibold uppercase tracking-wide text-neutral-500",
+        "h-9 px-3 text-left align-middle text-[11px] font-semibold uppercase tracking-wide text-neutral-500",
         className
       )}
       {...props}
@@ -72,7 +72,7 @@ export function TableCell({
 }: TdHTMLAttributes<HTMLTableCellElement>) {
   return (
     <td
-      className={cn("px-4 py-3 align-middle text-neutral-800", className)}
+      className={cn("px-3 py-1.5 align-middle text-sm text-neutral-800", className)}
       {...props}
     />
   );

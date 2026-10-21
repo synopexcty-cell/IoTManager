@@ -7,6 +7,8 @@ import {
   WEEKDAY_SHORT,
 } from "@/lib/column-colors";
 import { mealCount, type MealKind } from "@/lib/meal";
+import { freezeCol } from "@/lib/freeze-cols";
+import { todayCol, todayDayOf } from "@/lib/today-column";
 import type { ColumnColors, Employee, MealRecord } from "@/lib/types";
 import { cn, daysInMonth, weekdayOf } from "@/lib/utils";
 import { useState } from "react";
@@ -35,6 +37,8 @@ export function MealGrid({
   const lastDay = daysInMonth(year, month);
   const days = Array.from({ length: lastDay }, (_, i) => i + 1);
   const mm = String(month).padStart(2, "0");
+  const todayDay = todayDayOf(year, month);
+  const { edge: todayEdge, top: todayTop, bottom: todayBottom } = todayCol;
 
   const byEmpDate = new Map<string, MealRecord>();
   for (const r of records) {
@@ -100,21 +104,31 @@ export function MealGrid({
   return (
     <div className="space-y-3">
       <div className="-mx-4 overflow-x-auto px-4 sm:-mx-6 sm:px-6">
-        <table className="w-max min-w-full border-collapse text-black">
+        <table className={cn("w-max min-w-full text-black", freezeCol.table)}>
           <thead>
             <tr>
-              <th className={cn(th, "min-w-[220px] bg-white text-left")} colSpan={4}>
+              <th
+                className={cn(th, freezeCol.block, "text-left")}
+                colSpan={4}
+              >
                 {`Ăn ngoài — Tháng ${month}/${year}`}
               </th>
               {days.map((day) => {
                 const bg = dayFill(columnColors, year, month, day);
+                const isToday = day === todayDay;
                 return (
                   <th
                     key={`d-${day}`}
-                    className={cn(th, "w-11 min-w-[44px]")}
+                    className={cn(th, "w-11 min-w-[44px]", isToday && todayTop)}
                     style={{ backgroundColor: bg, color: contrastText(bg) }}
+                    title={isToday ? "Hôm nay" : undefined}
                   >
                     {day}
+                    {isToday && (
+                      <span className="mt-0.5 block text-[9px] font-extrabold leading-none text-primary">
+                        NOW
+                      </span>
+                    )}
                   </th>
                 );
               })}
@@ -123,21 +137,23 @@ export function MealGrid({
               </th>
             </tr>
             <tr>
-              <th className={cn(th, "w-12")}>No</th>
-              <th className={cn(th, "w-16")}>Team</th>
-              <th className={cn(th, "w-[72px]")}>Ca</th>
-              <th className={cn(th, "min-w-[140px] text-left")}>
+              <th className={cn(th, freezeCol.no)}>No</th>
+              <th className={cn(th, freezeCol.team)}>Team</th>
+              <th className={cn(th, freezeCol.ca)}>Ca</th>
+              <th className={cn(th, freezeCol.name, "text-left")}>
                 Họ và Tên
                 <br />
                 <span className="font-normal text-neutral-500">Full Name</span>
               </th>
               {days.map((day) => {
                 const bg = dayFill(columnColors, year, month, day);
+                const isToday = day === todayDay;
                 return (
                   <th
                     key={`w-${day}`}
-                    className={cn(th, "w-11 min-w-[44px]")}
+                    className={cn(th, "w-11 min-w-[44px]", isToday && todayEdge)}
                     style={{ backgroundColor: bg, color: contrastText(bg) }}
+                    title={isToday ? "Hôm nay" : undefined}
                   >
                     {WEEKDAY_SHORT[weekdayOf(year, month, day)]}
                   </th>
@@ -151,36 +167,43 @@ export function MealGrid({
           <tbody>
             {rows.map(({ emp, index, cells, total }) => (
               <tr key={emp.name}>
-                <td className={cn(td, "relative font-medium")}>
+                <td className={cn(td, freezeCol.no, "relative font-medium")}>
                   <span className="absolute left-0 top-0 border-t-[7px] border-r-[7px] border-t-green-600 border-r-transparent" />
                   {index + 1}
                 </td>
                 {(!sameTeam || index === 0) && (
-                  <td className={td} rowSpan={sameTeam ? rows.length : undefined}>
+                  <td
+                    className={cn(td, freezeCol.team)}
+                    rowSpan={sameTeam ? rows.length : undefined}
+                  >
                     {emp.team || "—"}
                   </td>
                 )}
                 {(!sameShift || index === 0) && (
                   <td
-                    className={td}
+                    className={cn(td, freezeCol.ca)}
                     rowSpan={sameShift ? rows.length : undefined}
                   >
                     {emp.shift || "—"}
                   </td>
                 )}
-                <td className={cn(td, "text-left font-medium")}>{emp.name}</td>
+                <td className={cn(td, freezeCol.name, "text-left font-medium")}>
+                  {emp.name}
+                </td>
                 {cells.map((cell, i) => {
                   const day = i + 1;
                   const bg = dayFill(columnColors, year, month, day);
                   const allow = !canEditName || canEditName(emp.name);
+                  const isToday = day === todayDay;
                   return (
                     <td
                       key={`${emp.name}-${day}`}
-                      className={cn(td, "p-0.5")}
+                      className={cn(td, "p-0.5", isToday && todayEdge)}
                       style={{
                         backgroundColor: bg,
                         color: contrastText(bg),
                       }}
+                      title={isToday ? "Hôm nay" : undefined}
                     >
                       <div className="flex flex-col gap-0.5">
                         <MealChip
@@ -214,17 +237,23 @@ export function MealGrid({
               </tr>
             ))}
             <tr>
-              <td className={cn(td, "font-bold")} colSpan={4}>
+              <td className={cn(td, freezeCol.block, "font-bold")} colSpan={4}>
                 Tổng ăn trưa
               </td>
               {days.map((day) => {
                 const count = rows.filter((r) => r.cells[day - 1].lunch).length;
                 const bg = dayFill(columnColors, year, month, day);
+                const isToday = day === todayDay;
                 return (
                   <td
                     key={`lunch-${day}`}
-                    className={cn(td, "font-bold tabular-nums")}
+                    className={cn(
+                      td,
+                      "font-bold tabular-nums",
+                      isToday && todayEdge
+                    )}
                     style={{ backgroundColor: bg, color: contrastText(bg) }}
+                    title={isToday ? "Hôm nay" : undefined}
                   >
                     {count || ""}
                   </td>
@@ -238,17 +267,23 @@ export function MealGrid({
               </td>
             </tr>
             <tr>
-              <td className={cn(td, "font-bold")} colSpan={4}>
+              <td className={cn(td, freezeCol.block, "font-bold")} colSpan={4}>
                 Tổng ăn chiều
               </td>
               {days.map((day) => {
                 const count = rows.filter((r) => r.cells[day - 1].dinner).length;
                 const bg = dayFill(columnColors, year, month, day);
+                const isToday = day === todayDay;
                 return (
                   <td
                     key={`dinner-${day}`}
-                    className={cn(td, "font-bold tabular-nums")}
+                    className={cn(
+                      td,
+                      "font-bold tabular-nums",
+                      isToday && todayBottom
+                    )}
                     style={{ backgroundColor: bg, color: contrastText(bg) }}
+                    title={isToday ? "Hôm nay" : undefined}
                   >
                     {count || ""}
                   </td>

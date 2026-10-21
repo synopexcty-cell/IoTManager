@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/Table";
+import { RowMenu } from "@/components/ui/RowMenu";
 import { useToast } from "@/components/ui/Toast";
 import {
   downloadEmployeeTemplate,
@@ -265,24 +266,28 @@ export default function EmployeesPage() {
     );
   }
 
-  const actionButtons = (emp: Employee) => (
-    <div className="flex flex-wrap items-center justify-end gap-2">
-      <Button variant="outline" size="sm" onClick={() => openEdit(emp)}>
-        <Pencil className="h-3.5 w-3.5" />
-        Sửa
-      </Button>
-      {emp.name !== user.name && (
-        <Button
-          variant="danger"
-          size="sm"
-          loading={busyName === emp.name}
-          onClick={() => handleDelete(emp.name)}
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-          Xóa
-        </Button>
-      )}
-    </div>
+  const actionMenu = (emp: Employee) => (
+    <RowMenu
+      label={`Thao tác ${emp.name}`}
+      items={[
+        {
+          label: "Sửa",
+          icon: <Pencil className="h-4 w-4" />,
+          onSelect: () => openEdit(emp),
+        },
+        ...(emp.name === user.name
+          ? []
+          : [
+              {
+                label: "Xóa",
+                icon: <Trash2 className="h-4 w-4" />,
+                danger: true,
+                disabled: busyName === emp.name,
+                onSelect: () => handleDelete(emp.name),
+              },
+            ]),
+      ]}
+    />
   );
 
   return (
@@ -336,8 +341,8 @@ export default function EmployeesPage() {
         />
       ) : (
         <>
-          <Card className="hidden overflow-hidden lg:block">
-            <CardHeader className="border-b border-neutral-100 pb-4">
+          <Card className="hidden overflow-hidden md:block">
+            <CardHeader className="border-b border-neutral-100 p-3 pb-3">
               <CardTitle>
                 Nhân viên{" "}
                 <span className="font-normal text-neutral-400">
@@ -357,7 +362,9 @@ export default function EmployeesPage() {
                     <TableHead>CCCD</TableHead>
                     <TableHead>Vai trò</TableHead>
                     <TableHead>Trạng thái</TableHead>
-                    <TableHead className="text-right">Thao tác</TableHead>
+                    <TableHead className="w-10 text-right">
+                      <span className="sr-only">Thao tác</span>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -366,15 +373,8 @@ export default function EmployeesPage() {
                       <TableCell className="font-medium tabular-nums">
                         {emp.employeeCode || "—"}
                       </TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{emp.name}</p>
-                          {emp.address ? (
-                            <p className="mt-0.5 max-w-[220px] truncate text-xs text-neutral-500">
-                              {emp.address}
-                            </p>
-                          ) : null}
-                        </div>
+                      <TableCell className="max-w-[180px] truncate font-medium" title={emp.address || emp.name}>
+                        {emp.name}
                       </TableCell>
                       <TableCell>{emp.gender || "—"}</TableCell>
                       <TableCell className="tabular-nums">
@@ -391,7 +391,7 @@ export default function EmployeesPage() {
                       </TableCell>
                       <TableCell>
                         <span
-                          className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                          className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${
                             emp.active
                               ? "bg-green-100 text-green-700"
                               : "bg-neutral-100 text-neutral-500"
@@ -401,7 +401,7 @@ export default function EmployeesPage() {
                         </span>
                       </TableCell>
                       <TableCell className="text-right">
-                        {actionButtons(emp)}
+                        {actionMenu(emp)}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -410,43 +410,26 @@ export default function EmployeesPage() {
             </CardContent>
           </Card>
 
-          <div className="space-y-3 lg:hidden">
+          <div className="space-y-1.5 md:hidden">
             {employees.map((emp) => (
-              <Card key={emp.name} className="p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-xs font-medium text-neutral-500">
-                      {emp.employeeCode || "—"}
+              <Card key={emp.name} className="px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-black">
+                      {emp.name}
+                      <span className="ml-2 font-normal tabular-nums text-neutral-500">
+                        {emp.employeeCode || "—"}
+                      </span>
                     </p>
-                    <p className="font-medium text-black">{emp.name}</p>
-                    <p className="mt-1 text-sm text-neutral-500">
+                    <p className="truncate text-xs text-neutral-500">
                       {emp.role === "admin" ? "Quản trị" : "Nhân viên"}
-                      {emp.gender ? ` · ${emp.gender}` : ""}
-                      {emp.birthDate
-                        ? ` · ${formatShortDate(emp.birthDate)}`
-                        : ""}
                       {emp.phone ? ` · ${emp.phone}` : ""}
+                      {" · "}
+                      {emp.active ? "Hoạt động" : "Đã khóa"}
                     </p>
-                    {emp.cccd ? (
-                      <p className="text-xs text-neutral-500">CCCD: {emp.cccd}</p>
-                    ) : null}
-                    {emp.address ? (
-                      <p className="mt-1 text-xs text-neutral-500">
-                        {emp.address}
-                      </p>
-                    ) : null}
                   </div>
-                  <span
-                    className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                      emp.active
-                        ? "bg-green-100 text-green-700"
-                        : "bg-neutral-100 text-neutral-500"
-                    }`}
-                  >
-                    {emp.active ? "Hoạt động" : "Đã khóa"}
-                  </span>
+                  {actionMenu(emp)}
                 </div>
-                <div className="mt-3">{actionButtons(emp)}</div>
               </Card>
             ))}
           </div>

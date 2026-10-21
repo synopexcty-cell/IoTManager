@@ -8,7 +8,9 @@ import {
 } from "@/lib/column-colors";
 import { formatOtDisplay } from "@/lib/ot";
 import type { AttendanceRecord, ColumnColors, Employee } from "@/lib/types";
-import { cn, daysInMonth, todayISO, weekdayOf, workedHours } from "@/lib/utils";
+import { freezeCol } from "@/lib/freeze-cols";
+import { todayCol, todayDayOf } from "@/lib/today-column";
+import { cn, daysInMonth, weekdayOf, workedHours } from "@/lib/utils";
 import { useEffect, useRef, useState } from "react";
 
 type CellValue = number | "P" | "/" | string | undefined;
@@ -80,17 +82,8 @@ export function MonthGrid({
   const days = Array.from({ length: lastDay }, (_, i) => i + 1);
   const mm = String(month).padStart(2, "0");
   const heading = title || `Lịch chấm công — Tháng ${month}/${year}`;
-  const today = todayISO();
-  const todayDay = today.startsWith(`${year}-${mm}-`)
-    ? Number(today.slice(8, 10))
-    : 0;
-  /** Một khung cột: chỉ trái/phải giữa các ô; nắp trên header, đáy footer */
-  const todayEdge =
-    "relative z-[1] shadow-[inset_3px_0_0_#DC2626,inset_-3px_0_0_#DC2626]";
-  const todayTop =
-    "relative z-[1] shadow-[inset_3px_0_0_#DC2626,inset_-3px_0_0_#DC2626,inset_0_3px_0_#DC2626]";
-  const todayBottom =
-    "relative z-[1] shadow-[inset_3px_0_0_#DC2626,inset_-3px_0_0_#DC2626,inset_0_-3px_0_#DC2626]";
+  const todayDay = todayDayOf(year, month);
+  const { edge: todayEdge, top: todayTop, bottom: todayBottom } = todayCol;
 
   const byEmpDate = new Map<string, AttendanceRecord>();
   for (const r of records || []) {
@@ -164,10 +157,13 @@ export function MonthGrid({
   return (
     <div className="space-y-3">
       <div className="-mx-4 overflow-x-auto px-4 sm:-mx-6 sm:px-6">
-        <table className="w-max min-w-full border-collapse text-black">
+        <table className={cn("w-max min-w-full text-black", freezeCol.table)}>
           <thead>
             <tr>
-              <th className={cn(th, "min-w-[220px] bg-white text-left")} colSpan={4}>
+              <th
+                className={cn(th, freezeCol.block, "text-left")}
+                colSpan={4}
+              >
                 {heading}
               </th>
               {days.map((day) => {
@@ -215,10 +211,10 @@ export function MonthGrid({
               </th>
             </tr>
             <tr>
-              <th className={cn(th, "w-12")}>No</th>
-              <th className={cn(th, "w-16")}>Team</th>
-              <th className={cn(th, "w-[72px]")}>Ca</th>
-              <th className={cn(th, "min-w-[140px] text-left")}>
+              <th className={cn(th, freezeCol.no)}>No</th>
+              <th className={cn(th, freezeCol.team)}>Team</th>
+              <th className={cn(th, freezeCol.ca)}>Ca</th>
+              <th className={cn(th, freezeCol.name, "text-left")}>
                 Họ và Tên
                 <br />
                 <span className="font-normal text-neutral-500">Full Name</span>
@@ -266,13 +262,13 @@ export function MonthGrid({
           <tbody>
             {rows.map(({ emp, index, cells, total }) => (
               <tr key={emp.name}>
-                <td className={cn(td, "relative font-medium")}>
+                <td className={cn(td, freezeCol.no, "relative font-medium")}>
                   <span className="absolute left-0 top-0 border-t-[7px] border-r-[7px] border-t-green-600 border-r-transparent" />
                   {index + 1}
                 </td>
                 {(!sameTeam || index === 0) && (
                   <td
-                    className={td}
+                    className={cn(td, freezeCol.team)}
                     rowSpan={sameTeam ? rows.length : undefined}
                   >
                     {emp.team || "—"}
@@ -280,13 +276,15 @@ export function MonthGrid({
                 )}
                 {(!sameShift || index === 0) && (
                   <td
-                    className={td}
+                    className={cn(td, freezeCol.ca)}
                     rowSpan={sameShift ? rows.length : undefined}
                   >
                     {emp.shift || "—"}
                   </td>
                 )}
-                <td className={cn(td, "text-left font-medium")}>{emp.name}</td>
+                <td className={cn(td, freezeCol.name, "text-left font-medium")}>
+                  {emp.name}
+                </td>
                 {cells.map((value, i) => {
                   const day = i + 1;
                   const leave = isLeave(value);
@@ -367,7 +365,7 @@ export function MonthGrid({
               </tr>
             ))}
             <tr>
-              <td className={cn(td, "font-bold")} colSpan={4}>
+              <td className={cn(td, freezeCol.block, "font-bold")} colSpan={4}>
                 {footerLabel}
               </td>
               {days.map((day) => {
