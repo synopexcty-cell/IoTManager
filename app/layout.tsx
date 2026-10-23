@@ -11,8 +11,14 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "ChấmCông — Hệ thống chấm công",
-  description: "Ứng dụng chấm công nhân viên với MongoDB Atlas",
+  title: "Công SIFLEX",
+  description: "Đăng nhập để tiếp tục",
+  robots: { index: false, follow: false },
+  openGraph: {
+    title: "Công SIFLEX",
+    description: "Đăng nhập để tiếp tục",
+    type: "website",
+  },
 };
 
 export const viewport: Viewport = {

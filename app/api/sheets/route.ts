@@ -1,9 +1,4 @@
-import {
-  friendlyMongoError,
-  getDb,
-  getMongoHostHint,
-  hasMongoUri,
-} from "@/lib/mongodb";
+import { getDb, hasMongoUri } from "@/lib/mongodb";
 import { getDataConfig, callSheetsServer } from "@/lib/sheets-server";
 import type { SheetsAction, SheetsRequest } from "@/lib/types";
 import { NextResponse } from "next/server";
@@ -31,35 +26,20 @@ const ALLOWED: SheetsAction[] = [
 
 /** Trạng thái + warm Mongo connection */
 export async function GET() {
-  const { configured, backend } = getDataConfig();
+  const { configured } = getDataConfig();
   if (!configured || !hasMongoUri()) {
     return NextResponse.json(
-      {
-        ok: false,
-        backend,
-        error: "Chưa cấu hình MONGODB_URI",
-      },
+      { ok: false, error: "Chưa sẵn sàng" },
       { status: 503 }
     );
   }
   try {
     const db = await getDb();
     await db.command({ ping: 1 });
-    const count = await db.collection("employees").countDocuments();
-    return NextResponse.json({
-      ok: true,
-      backend: "mongo",
-      host: getMongoHostHint(),
-      employees: count,
-    });
-  } catch (err) {
+    return NextResponse.json({ ok: true });
+  } catch {
     return NextResponse.json(
-      {
-        ok: false,
-        backend: "mongo",
-        host: getMongoHostHint(),
-        error: friendlyMongoError(err),
-      },
+      { ok: false, error: "Không kết nối được máy chủ" },
       { status: 503 }
     );
   }
@@ -69,7 +49,7 @@ export async function POST(req: Request) {
   const { configured } = getDataConfig();
   if (!configured) {
     return NextResponse.json(
-      { ok: false, error: "Chưa cấu hình MONGODB_URI trên server" },
+      { ok: false, error: "Chưa sẵn sàng" },
       { status: 503 }
     );
   }

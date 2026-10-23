@@ -4,7 +4,7 @@ import {
   normalizeMonthColors,
 } from "./column-colors";
 import { cacheGet, cacheInvalidate, cacheSet } from "./server-cache";
-import { friendlyMongoError, getDb } from "./mongodb";
+import { getDb } from "./mongodb";
 import { parseMealRecord } from "./meal";
 import { parseOtValue } from "./ot";
 import type {
@@ -634,9 +634,10 @@ export async function mongoHandler<T>(
         return { ok: false, error: `Unknown action: ${action}` };
     }
   } catch (err) {
+    console.error(err);
     return {
       ok: false,
-      error: friendlyMongoError(err),
+      error: "Không kết nối được máy chủ",
     };
   }
 }

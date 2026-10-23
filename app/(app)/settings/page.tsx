@@ -87,9 +87,7 @@ export default function SettingsPage() {
         const data = await res.json();
         setDbOk(res.ok && data.ok === true);
         if (data.ok) {
-          setDbInfo(
-            `${data.host || "MongoDB"} · ${data.employees ?? "?"} nhân viên`
-          );
+          setDbInfo("Đã kết nối");
         } else {
           setDbInfo(data.error || "Lỗi kết nối");
         }
@@ -382,7 +380,7 @@ export default function SettingsPage() {
             Kết nối dữ liệu
           </CardTitle>
           <CardDescription>
-            MongoDB Atlas và hàng đợi offline
+            Máy chủ dữ liệu và hàng đợi offline
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -392,7 +390,7 @@ export default function SettingsPage() {
                 <AlertTriangle className="h-5 w-5 text-amber-500" />
                 <div>
                   <p className="text-sm font-medium text-black">
-                    Không kết nối được DB
+                    Không kết nối được máy chủ
                   </p>
                   <p className="text-xs text-neutral-500 break-all">{dbInfo}</p>
                 </div>
@@ -401,7 +399,7 @@ export default function SettingsPage() {
               <>
                 <Database className="h-5 w-5 text-green-600" />
                 <div>
-                  <p className="text-sm font-medium text-black">MongoDB Atlas</p>
+                  <p className="text-sm font-medium text-black">Máy chủ dữ liệu</p>
                   <p className="text-xs text-neutral-500">
                     {dbOk === null ? "Đang kiểm tra…" : dbInfo || "Đã kết nối"}
                   </p>

@@ -17,7 +17,7 @@ export async function callSheetsServer<T = unknown>(
   if (!hasMongoUri()) {
     return {
       ok: false,
-      error: "Chưa cấu hình MONGODB_URI trên server",
+      error: "Chưa sẵn sàng",
     };
   }
   return mongoHandler<T>(request);
