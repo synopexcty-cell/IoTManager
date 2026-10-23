@@ -112,6 +112,25 @@ export async function mongoHandler<T>(
     const { action, payload = {} } = request;
 
     switch (action) {
+      case "listLoginRoster": {
+        const cached = cacheGet<Array<{ employeeCode: string; name: string }>>(
+          "employees:login-roster"
+        );
+        if (cached) return { ok: true, data: cached as T };
+        const rows = await employees
+          .find({ active: true })
+          .project({ employeeCode: 1, name: 1 })
+          .sort({ employeeCode: 1 })
+          .toArray();
+        const data = rows
+          .map((e) => ({
+            employeeCode: e.employeeCode || "",
+            name: e.name || "",
+          }))
+          .filter((e) => e.employeeCode);
+        cacheSet("employees:login-roster", data, EMP_TTL);
+        return { ok: true, data: data as T };
+      }
       case "listEmployees": {
         const includePii = actor?.role === "admin";
         const cached = cacheGet<ReturnType<typeof publicEmployee>[]>(

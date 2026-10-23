@@ -4,7 +4,7 @@ import { getDataConfig, callSheetsServer } from "@/lib/sheets-server";
 import type { SheetsAction, SheetsRequest } from "@/lib/types";
 import { NextResponse } from "next/server";
 
-const PUBLIC_ACTIONS: SheetsAction[] = ["verifyPin"];
+const PUBLIC_ACTIONS: SheetsAction[] = ["verifyPin", "listLoginRoster"];
 const ADMIN_ACTIONS: SheetsAction[] = [
   "addEmployee",
   "importEmployees",
@@ -18,6 +18,7 @@ const ALLOWED: SheetsAction[] = [
   "listEmployees",
   "listAttendance",
   "verifyPin",
+  "listLoginRoster",
   "checkIn",
   "checkOut",
   "saveAttendance",

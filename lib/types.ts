@@ -98,9 +98,15 @@ export type SheetsAction =
   | "deleteEmployee"
   | "deactivateEmployee"
   | "verifyPin"
+  | "listLoginRoster"
   | "changePassword"
   | "getSettings"
   | "updateSettings";
+
+export interface LoginRosterItem {
+  employeeCode: string;
+  name: string;
+}
 
 export interface SheetsRequest {
   action: SheetsAction;

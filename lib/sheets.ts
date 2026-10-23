@@ -29,6 +29,7 @@ import type {
   AppSettings,
   AttendanceRecord,
   Employee,
+  LoginRosterItem,
   MealRecord,
   OtRecord,
   SheetsRequest,
@@ -129,6 +130,11 @@ export async function flushOfflineQueue(): Promise<{
   setQueue(remaining);
   if (success > 0) clientCacheInvalidateAll();
   return { success, failed };
+}
+
+export async function listLoginRoster(): Promise<LoginRosterItem[]> {
+  const res = await callSheets<LoginRosterItem[]>({ action: "listLoginRoster" });
+  return res.ok && res.data ? res.data : [];
 }
 
 export async function listEmployees(options?: {

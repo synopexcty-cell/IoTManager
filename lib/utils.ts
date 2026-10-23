@@ -26,7 +26,7 @@ export function normalizeTime(raw: unknown): string {
   return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
 }
 
-function stripVi(s: string) {
+export function foldVi(s: string) {
   return s
     .toLowerCase()
     .normalize("NFD")
@@ -37,7 +37,7 @@ function stripVi(s: string) {
 
 /** Chuẩn hóa giới tính: Nam / Nữ / "" */
 export function parseGender(raw: unknown): string {
-  const s = stripVi(String(raw ?? ""));
+  const s = foldVi(String(raw ?? ""));
   if (!s) return "";
   if (["nam", "male", "m", "boy", "1"].includes(s)) return "Nam";
   if (["nu", "female", "f", "girl", "0", "2"].includes(s)) return "Nữ";

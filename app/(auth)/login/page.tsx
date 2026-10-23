@@ -1,13 +1,18 @@
 "use client";
 
+import {
+  EmployeePicker,
+  resolveLoginCode,
+} from "@/components/auth/EmployeePicker";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { useToast } from "@/components/ui/Toast";
 import { setPendingPin } from "@/lib/auth";
-import { verifyPin } from "@/lib/sheets";
-import { isValidPin, normalizeEmployeeCode } from "@/lib/utils";
+import { listLoginRoster, verifyPin } from "@/lib/sheets";
+import type { LoginRosterItem } from "@/lib/types";
+import { isValidPin } from "@/lib/utils";
 import { Fingerprint } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -20,18 +25,33 @@ export default function LoginPage() {
   const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [roster, setRoster] = useState<LoginRosterItem[]>([]);
 
   useEffect(() => {
     if (authLoading || !user) return;
     router.replace(user.mustChangePassword ? "/change-password" : "/dashboard");
   }, [authLoading, user, router]);
 
+  useEffect(() => {
+    let cancelled = false;
+    listLoginRoster()
+      .then((list) => {
+        if (!cancelled) setRoster(list);
+      })
+      .catch(() => {
+        if (!cancelled) setRoster([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    const code = normalizeEmployeeCode(employeeCode);
+    const code = resolveLoginCode(employeeCode, roster);
     if (!code) {
-      setError("Vui lòng nhập mã nhân viên");
+      setError("Vui lòng nhập hoặc chọn mã nhân viên");
       return;
     }
     if (!isValidPin(pin)) {
@@ -81,7 +101,7 @@ export default function LoginPage() {
           ChấmCông
         </h1>
         <p className="mt-1 text-sm text-neutral-500">
-          Đăng nhập bằng mã nhân viên
+          Gõ mã NV, gõ tên, hoặc chọn trong danh sách
         </p>
       </div>
 
@@ -89,19 +109,16 @@ export default function LoginPage() {
         <CardHeader>
           <CardTitle>Đăng nhập</CardTitle>
           <CardDescription>
-            Tên đăng nhập là mã NV, ví dụ VT004587
+            Không nhớ mã thì chọn tên trong danh sách
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <Input
-              label="Mã nhân viên"
-              autoComplete="username"
-              placeholder="VT004587"
+            <EmployeePicker
               value={employeeCode}
-              onChange={(e) =>
-                setEmployeeCode(e.target.value.toUpperCase().replace(/\s/g, ""))
-              }
+              onChange={setEmployeeCode}
+              options={roster}
+              disabled={loading}
             />
             <Input
               label="Mật khẩu"
