@@ -9,8 +9,14 @@ import { TableSkeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { colorsForMonth, DEFAULT_COLUMN_COLORS } from "@/lib/column-colors";
 import { parseOtValue } from "@/lib/ot";
+import {
+  employeeOtBlockedMessage,
+  formatOtLocal,
+  isOtWindowOpen,
+  normalizeOtWindow,
+} from "@/lib/ot-window";
 import { getSettings, listEmployees, listOt, saveOt } from "@/lib/sheets";
-import type { ColumnColors, Employee, OtRecord } from "@/lib/types";
+import type { ColumnColors, Employee, OtRecord, OtWindow } from "@/lib/types";
 import { monthRange, todayISO } from "@/lib/utils";
 import { ChevronLeft, ChevronRight, Download, Inbox } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -27,6 +33,8 @@ export default function OtPage() {
   const [columnColors, setColumnColors] = useState<ColumnColors>(
     DEFAULT_COLUMN_COLORS
   );
+  const [otWindow, setOtWindow] = useState<OtWindow | null>(null);
+  const [nowTick, setNowTick] = useState(() => Date.now());
   const [loading, setLoading] = useState(true);
 
   const { from, to } = useMemo(() => monthRange(year, month), [year, month]);
@@ -51,7 +59,7 @@ export default function OtPage() {
           },
           { force: true }
         ),
-        getSettings(),
+        getSettings({ force: true }),
       ]);
       const list = isAdmin
         ? emps.filter((e) => e.active)
@@ -59,6 +67,7 @@ export default function OtPage() {
       setEmployees(list);
       setRecords(ot);
       setColumnColors(colorsForMonth(settings, year, month));
+      setOtWindow(normalizeOtWindow(settings.otWindow));
     } finally {
       setLoading(false);
     }
@@ -68,11 +77,23 @@ export default function OtPage() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    const t = setInterval(() => setNowTick(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+
+  const otOpen = isOtWindowOpen(otWindow, nowTick);
+  const canEmployeeEdit = otOpen;
+
   const handleCommit = async (employeeName: string, date: string, raw: string) => {
     const parsed = parseOtValue(raw);
     if (parsed == null) {
       toast("Giờ OT không hợp lệ (0–24, P hoặc /)", "error");
       throw new Error("invalid");
+    }
+    if (!isAdmin && !isOtWindowOpen(otWindow)) {
+      toast(employeeOtBlockedMessage(otWindow), "error");
+      throw new Error("closed");
     }
     const res = await saveOt({ name: employeeName, date, value: parsed });
     if (!res.ok) {
@@ -164,6 +185,24 @@ export default function OtPage() {
         </CardContent>
       </Card>
 
+      <div
+        className={`rounded-lg px-4 py-3 text-sm ${
+          isAdmin
+            ? "bg-neutral-50 text-neutral-700"
+            : otOpen
+              ? "bg-emerald-50 text-emerald-800"
+              : "bg-amber-50 text-amber-800"
+        }`}
+      >
+        {isAdmin
+          ? otOpen && otWindow
+            ? `Nhân viên đang được đăng ký OT đến ${formatOtLocal(otWindow.to)}. Quản trị luôn sửa được.`
+            : `${employeeOtBlockedMessage(otWindow, nowTick)} Quản trị vẫn sửa được.`
+          : otOpen && otWindow
+            ? `Đang mở đăng ký OT đến ${formatOtLocal(otWindow.to)}.`
+            : employeeOtBlockedMessage(otWindow, nowTick)}
+      </div>
+
       {loading ? (
         <TableSkeleton />
       ) : employees.length === 0 ? (
@@ -182,9 +221,15 @@ export default function OtPage() {
           title={`Lịch OT — Tháng ${month}/${year}`}
           hoursLabel="Giờ OT"
           footerLabel="Tổng người OT"
-          noteHours="Số = số giờ OT. Bấm vào ô để đăng ký (P = phép, / = nghỉ, xóa ô = bỏ)."
-          editable
-          canEditName={(name) => isAdmin || name === user?.name}
+          noteHours={
+            isAdmin || canEmployeeEdit
+              ? "Số = số giờ OT. Bấm vào ô để đăng ký (P = phép, / = nghỉ, xóa ô = bỏ)."
+              : "Chỉ xem — ngoài thời gian đăng ký OT."
+          }
+          editable={isAdmin || canEmployeeEdit}
+          canEditName={(name) =>
+            isAdmin || (canEmployeeEdit && name === user?.name)
+          }
           onCommit={handleCommit}
         />
       )}

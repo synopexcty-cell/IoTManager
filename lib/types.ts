@@ -56,6 +56,7 @@ export interface AuthUser {
   role: Role;
   employeeCode?: string;
   mustChangePassword?: boolean;
+  token?: string;
 }
 
 export interface ColumnColors {
@@ -66,11 +67,19 @@ export interface ColumnColors {
   days?: Record<string, string>;
 }
 
+/** Khoảng giờ VN (yyyy-MM-ddTHH:mm) nhân viên được đăng ký OT */
+export interface OtWindow {
+  from: string;
+  to: string;
+}
+
 export interface AppSettings {
   /** Màu mặc định khi tháng chưa được cấu hình */
   columnColors: ColumnColors;
   /** key = yyyy-MM */
   monthColors?: Record<string, ColumnColors>;
+  /** null = đóng, nhân viên không đăng ký được */
+  otWindow?: OtWindow | null;
 }
 
 export type SheetsAction =

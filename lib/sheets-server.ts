@@ -1,5 +1,6 @@
 import { mongoHandler } from "./mongo-store";
 import { hasMongoUri } from "./mongodb";
+import type { Session } from "./session";
 import type { SheetsRequest, SheetsResponse } from "./types";
 
 export function getDataConfig() {
@@ -10,9 +11,9 @@ export function getDataConfig() {
   };
 }
 
-/** Chỉ MongoDB Atlas — thiếu MONGODB_URI thì báo lỗi, không fallback demo */
 export async function callSheetsServer<T = unknown>(
-  request: SheetsRequest
+  request: SheetsRequest,
+  actor: Session | null
 ): Promise<SheetsResponse<T>> {
   if (!hasMongoUri()) {
     return {
@@ -20,5 +21,5 @@ export async function callSheetsServer<T = unknown>(
       error: "Chưa sẵn sàng",
     };
   }
-  return mongoHandler<T>(request);
+  return mongoHandler<T>(request, actor);
 }

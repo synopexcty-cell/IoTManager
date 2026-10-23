@@ -10,6 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
 import { useToast } from "@/components/ui/Toast";
 import {
   colorsForMonth,
@@ -21,10 +22,16 @@ import {
   WEEKDAY_SHORT,
 } from "@/lib/column-colors";
 import { getQueue } from "@/lib/offline-queue";
+import {
+  employeeOtBlockedMessage,
+  formatOtLocal,
+  normalizeOtWindow,
+  otWindowStatus,
+} from "@/lib/ot-window";
 import { flushOfflineQueue, getSettings, updateSettings } from "@/lib/sheets";
 import type { AppSettings, ColumnColors, Employee } from "@/lib/types";
-import { daysInMonth, todayISO, weekdayOf } from "@/lib/utils";
-import { AlertTriangle, Database, LogOut, Palette, RefreshCw } from "lucide-react";
+import { daysInMonth, nowDateTimeLocal, todayISO, weekdayOf } from "@/lib/utils";
+import { AlertTriangle, Clock, Database, LogOut, Palette, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -74,6 +81,10 @@ export default function SettingsPage() {
   const [brushDraft, setBrushDraft] = useState("#ed7d31");
   const [savingColors, setSavingColors] = useState(false);
   const [colorsLoaded, setColorsLoaded] = useState(false);
+  const [otFrom, setOtFrom] = useState("");
+  const [otTo, setOtTo] = useState("");
+  const [savingOt, setSavingOt] = useState(false);
+  const [nowTick, setNowTick] = useState(() => Date.now());
 
   useEffect(() => {
     if (user && user.role !== "admin") {
@@ -101,8 +112,16 @@ export default function SettingsPage() {
         const next: AppSettings = {
           columnColors: normalizeColumnColors(s.columnColors),
           monthColors: s.monthColors || {},
+          otWindow: normalizeOtWindow(s.otWindow),
         };
         setSettings(next);
+        if (next.otWindow) {
+          setOtFrom(next.otWindow.from);
+          setOtTo(next.otWindow.to);
+        } else {
+          setOtFrom(nowDateTimeLocal());
+          setOtTo(`${todayISO()}T23:59`);
+        }
       })
       .finally(() => setColorsLoaded(true));
   }, [user, router]);
@@ -113,6 +132,11 @@ export default function SettingsPage() {
       expandDayColors(colorsForMonth(settings, year, month), year, month)
     );
   }, [year, month, settings, colorsLoaded]);
+
+  useEffect(() => {
+    const t = setInterval(() => setNowTick(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
 
   const paintHex = normalizeHexColor(brush, "#ed7d31");
 
@@ -160,6 +184,7 @@ export default function SettingsPage() {
         setSettings({
           columnColors: normalizeColumnColors(res.data.columnColors),
           monthColors: res.data.monthColors || {},
+          otWindow: normalizeOtWindow(res.data.otWindow),
         });
       }
       setColors(next);
@@ -171,6 +196,54 @@ export default function SettingsPage() {
 
   const handleResetColors = () => {
     setColors(expandDayColors(DEFAULT_COLUMN_COLORS, year, month));
+  };
+
+  const applySettings = (data: AppSettings) => {
+    const next: AppSettings = {
+      columnColors: normalizeColumnColors(data.columnColors),
+      monthColors: data.monthColors || {},
+      otWindow: normalizeOtWindow(data.otWindow),
+    };
+    setSettings(next);
+    return next;
+  };
+
+  const handleSaveOtWindow = async () => {
+    const next = normalizeOtWindow({ from: otFrom, to: otTo });
+    if (!next) {
+      toast("Thời gian không hợp lệ — giờ đến phải sau giờ từ", "error");
+      return;
+    }
+    setSavingOt(true);
+    try {
+      const res = await updateSettings({ otWindow: next });
+      if (!res.ok || !res.data) {
+        toast(res.error || "Không lưu được thời gian OT", "error");
+        return;
+      }
+      applySettings(res.data);
+      toast(
+        `Đã mở đăng ký OT từ ${formatOtLocal(next.from)} đến ${formatOtLocal(next.to)}`,
+        "success"
+      );
+    } finally {
+      setSavingOt(false);
+    }
+  };
+
+  const handleCloseOtWindow = async () => {
+    setSavingOt(true);
+    try {
+      const res = await updateSettings({ otWindow: null });
+      if (!res.ok || !res.data) {
+        toast(res.error || "Không đóng được đăng ký OT", "error");
+        return;
+      }
+      applySettings(res.data);
+      toast("Đã đóng đăng ký OT cho nhân viên", "success");
+    } finally {
+      setSavingOt(false);
+    }
   };
 
   const handleSync = async () => {
@@ -223,6 +296,70 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-neutral-400" />
+              Thời gian đăng ký OT
+            </CardTitle>
+            <CardDescription>
+              Nhân viên chỉ được đăng ký OT trong khoảng này. Quản trị luôn sửa được, kể cả khi đã đóng.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {(() => {
+              const status = otWindowStatus(settings.otWindow, nowTick);
+              const msg =
+                status === "open" && settings.otWindow
+                  ? `Đang mở đến ${formatOtLocal(settings.otWindow.to)}`
+                  : employeeOtBlockedMessage(settings.otWindow, nowTick);
+              const tone =
+                status === "open"
+                  ? "bg-emerald-50 text-emerald-800"
+                  : "bg-amber-50 text-amber-800";
+              return (
+                <p className={`rounded-lg px-4 py-3 text-sm font-medium ${tone}`}>
+                  {msg}
+                </p>
+              );
+            })()}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Input
+                label="Mở từ"
+                type="datetime-local"
+                value={otFrom}
+                onChange={(e) => setOtFrom(e.target.value)}
+              />
+              <Input
+                label="Đến"
+                type="datetime-local"
+                value={otTo}
+                onChange={(e) => setOtTo(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button
+                className="sm:flex-1"
+                onClick={handleSaveOtWindow}
+                loading={savingOt}
+                disabled={!colorsLoaded}
+              >
+                Mở đăng ký OT
+              </Button>
+              <Button
+                variant="outline"
+                className="sm:flex-1"
+                onClick={handleCloseOtWindow}
+                disabled={!colorsLoaded || savingOt || !settings.otWindow}
+              >
+                Đóng đăng ký
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {isAdmin && (
         <Card>

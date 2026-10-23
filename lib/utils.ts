@@ -124,6 +124,12 @@ export function nowTime(date = new Date()): string {
   return `${p.hour}:${p.minute}`;
 }
 
+/** yyyy-MM-ddTHH:mm theo giờ Việt Nam — dùng cho datetime-local */
+export function nowDateTimeLocal(date = new Date()): string {
+  const p = vnParts(date);
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+}
+
 /** Cộng/trừ ngày trên chuỗi yyyy-MM-dd (không phụ thuộc TZ máy). */
 export function addDaysISO(iso: string, days: number): string {
   const [y, m, d] = iso.split("-").map(Number);

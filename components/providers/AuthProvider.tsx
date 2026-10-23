@@ -2,8 +2,10 @@
 
 import {
   clearPendingPin,
+  clearStoredToken,
   clearStoredUser,
   getStoredUser,
+  setStoredToken,
   setStoredUser,
 } from "@/lib/auth";
 import type { AuthUser } from "@/lib/types";
@@ -41,18 +43,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, []);
 
-  const login = useCallback((u: AuthUser) => {
-    setStoredUser(u);
-    setUser(u);
+  const persist = useCallback((u: AuthUser) => {
+    const { token, ...next } = u;
+    if (token) setStoredToken(token);
+    setStoredUser(next);
+    setUser(next);
   }, []);
 
-  const updateUser = useCallback((u: AuthUser) => {
-    setStoredUser(u);
-    setUser(u);
-  }, []);
+  const login = persist;
+  const updateUser = persist;
 
   const logout = useCallback(() => {
     clearPendingPin();
+    clearStoredToken();
     clearStoredUser();
     setUser(null);
   }, []);

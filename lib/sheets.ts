@@ -1,4 +1,10 @@
 import {
+  clearStoredToken,
+  clearStoredUser,
+  getStoredToken,
+  setStoredToken,
+} from "./auth";
+import {
   clientCacheGetAttendance,
   clientCacheGetEmployees,
   clientCacheGetMeals,
@@ -17,6 +23,7 @@ import {
   clientCacheSetSettings,
 } from "./client-cache";
 import { DEFAULT_COLUMN_COLORS } from "./column-colors";
+import { normalizeOtWindow } from "./ot-window";
 import { enqueue, getQueue, setQueue } from "./offline-queue";
 import type {
   AppSettings,
@@ -28,19 +35,46 @@ import type {
   SheetsResponse,
 } from "./types";
 
-/** Client → /api/sheets (MongoDB trên server). */
 async function postToApi<T>(
   request: SheetsRequest
 ): Promise<SheetsResponse<T>> {
+  const token = getStoredToken();
   const res = await fetch("/api/sheets", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: JSON.stringify(request),
   });
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status}`);
+  const data = (await res.json().catch(() => null)) as SheetsResponse<T> | null;
+  if (res.status === 401) {
+    clearStoredToken();
+    clearStoredUser();
+    if (
+      typeof window !== "undefined" &&
+      !window.location.pathname.includes("/login")
+    ) {
+      window.location.replace("/login");
+    }
+    return { ok: false, error: data?.error || "Cần đăng nhập" };
   }
-  return (await res.json()) as SheetsResponse<T>;
+  if (!res.ok) {
+    return {
+      ok: false,
+      error: data?.error || `HTTP ${res.status}`,
+    };
+  }
+  if (
+    data?.ok &&
+    data.data &&
+    typeof data.data === "object" &&
+    "token" in (data.data as object)
+  ) {
+    const tokenValue = (data.data as { token?: string }).token;
+    if (tokenValue) setStoredToken(tokenValue);
+  }
+  return data as SheetsResponse<T>;
 }
 
 export async function callSheets<T = unknown>(
@@ -141,6 +175,7 @@ export async function verifyPin(employeeCode: string, pin: string) {
     role: "employee" | "admin";
     employeeCode: string;
     mustChangePassword: boolean;
+    token: string;
   }>({
     action: "verifyPin",
     payload: { employeeCode, pin },
@@ -157,6 +192,7 @@ export async function changePassword(
     role: "employee" | "admin";
     employeeCode: string;
     mustChangePassword: boolean;
+    token: string;
   }>({
     action: "changePassword",
     payload: { employeeCode, currentPin, newPin },
@@ -383,15 +419,17 @@ export async function getSettings(options?: {
       ? {
           columnColors: res.data.columnColors || DEFAULT_COLUMN_COLORS,
           monthColors: res.data.monthColors || {},
+          otWindow: normalizeOtWindow(res.data.otWindow),
         }
-      : { columnColors: DEFAULT_COLUMN_COLORS, monthColors: {} };
+      : { columnColors: DEFAULT_COLUMN_COLORS, monthColors: {}, otWindow: null };
   if (res.ok) clientCacheSetSettings(data);
   return data;
 }
 
 export async function updateSettings(payload: {
-  columnColors: AppSettings["columnColors"];
+  columnColors?: AppSettings["columnColors"];
   monthKey?: string;
+  otWindow?: AppSettings["otWindow"];
 }) {
   const res = await callSheets<AppSettings>({
     action: "updateSettings",

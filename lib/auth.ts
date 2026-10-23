@@ -1,6 +1,7 @@
 import type { AuthUser } from "./types";
 
 const AUTH_KEY = "chamcong_user";
+const TOKEN_KEY = "chamcong_token";
 const PENDING_PIN_KEY = "chamcong_pending_pin";
 
 export function setPendingPin(pin: string): void {
@@ -44,4 +45,21 @@ export function setStoredUser(user: AuthUser): void {
 
 export function clearStoredUser(): void {
   localStorage.removeItem(AUTH_KEY);
+}
+
+export function getStoredToken(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    return localStorage.getItem(TOKEN_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+export function setStoredToken(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function clearStoredToken(): void {
+  localStorage.removeItem(TOKEN_KEY);
 }

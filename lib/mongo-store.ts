@@ -7,6 +7,12 @@ import { cacheGet, cacheInvalidate, cacheSet } from "./server-cache";
 import { getDb } from "./mongodb";
 import { parseMealRecord } from "./meal";
 import { parseOtValue } from "./ot";
+import {
+  employeeOtBlockedMessage,
+  isOtWindowOpen,
+  normalizeOtWindow,
+} from "./ot-window";
+import { signSession, type Session } from "./session";
 import type {
   AppSettings,
   AttendanceRecord,
@@ -34,6 +40,7 @@ type SettingsDoc = {
   _id: string;
   columnColors?: unknown;
   monthColors?: unknown;
+  otWindow?: unknown;
 };
 
 const EMP_TTL = 30_000;
@@ -44,25 +51,56 @@ type AttDoc = AttendanceRecord & { _id?: unknown };
 type OtDoc = OtRecord & { _id?: unknown };
 type MealDoc = MealRecord & { _id?: unknown };
 
-function publicEmployee(emp: EmpDoc) {
-  return {
+function publicEmployee(emp: EmpDoc, includePii: boolean) {
+  const base = {
     name: emp.name,
     role: emp.role,
     active: emp.active,
     employeeCode: emp.employeeCode || "",
+    team: emp.team || "",
+    shift: emp.shift || "",
+    phone: "",
+    cccd: "",
+    address: "",
+    gender: "",
+    birthDate: "",
+  };
+  if (!includePii) return base;
+  return {
+    ...base,
     phone: emp.phone || "",
     cccd: emp.cccd || "",
     address: emp.address || "",
     gender: emp.gender || "",
     birthDate: emp.birthDate || "",
-    team: emp.team || "",
-    shift: emp.shift || "",
   };
 }
 
-/** MongoDB Atlas handlers */
+function authPayload(emp: EmpDoc) {
+  const session: Session = {
+    employeeCode: emp.employeeCode || "",
+    role: emp.role,
+    name: emp.name,
+  };
+  return {
+    name: emp.name,
+    role: emp.role,
+    employeeCode: emp.employeeCode,
+    mustChangePassword: emp.mustChangePassword !== false,
+    token: signSession(session),
+  };
+}
+
+function canActAs(actor: Session | null, name: string) {
+  if (!actor) return false;
+  if (actor.role === "admin") return true;
+  return actor.name === name;
+}
+
+/** Mongo handlers */
 export async function mongoHandler<T>(
-  request: SheetsRequest
+  request: SheetsRequest,
+  actor: Session | null
 ): Promise<SheetsResponse<T>> {
   try {
     const db = await getDb();
@@ -75,10 +113,16 @@ export async function mongoHandler<T>(
 
     switch (action) {
       case "listEmployees": {
+        const includePii = actor?.role === "admin";
         const cached = cacheGet<ReturnType<typeof publicEmployee>[]>(
           "employees:all"
         );
-        if (cached) return { ok: true, data: cached as T };
+        if (cached) {
+          const data = includePii
+            ? cached
+            : cached.map((e) => publicEmployee(e, false));
+          return { ok: true, data: data as T };
+        }
 
         let rows = await employees
           .find({})
@@ -102,8 +146,11 @@ export async function mongoHandler<T>(
             .sort({ employeeCode: 1 })
             .toArray();
         }
-        const data = rows.map(publicEmployee);
-        cacheSet("employees:all", data, EMP_TTL);
+        const full = rows.map((e) => publicEmployee(e, true));
+        cacheSet("employees:all", full, EMP_TTL);
+        const data = includePii
+          ? full
+          : full.map((e) => publicEmployee(e, false));
         return { ok: true, data: data as T };
       }
       case "listAttendance": {
@@ -134,6 +181,19 @@ export async function mongoHandler<T>(
         return { ok: true, data: data as T };
       }
       case "verifyPin": {
+        if ((await employees.countDocuments()) === 0) {
+          await employees.insertOne({
+            name: "Admin",
+            pin: "999999",
+            role: "admin",
+            active: true,
+            employeeCode: "NV001",
+            phone: "",
+            cccd: "",
+            address: "",
+            mustChangePassword: true,
+          });
+        }
         const code = normalizeEmployeeCode(
           String(payload.employeeCode || payload.code || payload.name || "")
         );
@@ -149,18 +209,19 @@ export async function mongoHandler<T>(
         }
         return {
           ok: true,
-          data: {
-            name: emp.name,
-            role: emp.role,
-            employeeCode: emp.employeeCode,
-            mustChangePassword: emp.mustChangePassword !== false,
-          } as T,
+          data: authPayload(emp) as T,
         };
       }
       case "changePassword": {
         const code = normalizeEmployeeCode(String(payload.employeeCode || ""));
         const currentPin = String(payload.currentPin || "");
         const newPin = String(payload.newPin || "").trim();
+        if (
+          !actor ||
+          normalizeEmployeeCode(actor.employeeCode) !== code
+        ) {
+          return { ok: false, error: "Không có quyền" };
+        }
         if (!code) return { ok: false, error: "Thiếu mã nhân viên" };
         if (!isValidPin(newPin)) {
           return { ok: false, error: "Mật khẩu mới phải gồm 4–8 chữ số" };
@@ -184,16 +245,14 @@ export async function mongoHandler<T>(
         cacheInvalidate("employees:");
         return {
           ok: true,
-          data: {
-            name: emp.name,
-            role: emp.role,
-            employeeCode: emp.employeeCode,
-            mustChangePassword: false,
-          } as T,
+          data: authPayload({ ...emp, mustChangePassword: false }) as T,
         };
       }
       case "checkIn": {
         const name = String(payload.name);
+        if (!canActAs(actor, name)) {
+          return { ok: false, error: "Không có quyền" };
+        }
         const date = todayISO();
         const existing = await attendance.findOne({ employeeName: name, date });
         if (existing?.checkIn) {
@@ -221,6 +280,9 @@ export async function mongoHandler<T>(
       }
       case "checkOut": {
         const name = String(payload.name);
+        if (!canActAs(actor, name)) {
+          return { ok: false, error: "Không có quyền" };
+        }
         const date = todayISO();
         const existing = await attendance.findOne({ employeeName: name, date });
         if (!existing?.checkIn) {
@@ -242,6 +304,9 @@ export async function mongoHandler<T>(
       }
       case "saveAttendance": {
         const name = String(payload.name || "").trim();
+        if (!canActAs(actor, name)) {
+          return { ok: false, error: "Không có quyền" };
+        }
         const date = String(payload.date || todayISO()).trim();
         const checkIn = normalizeTime(payload.checkIn);
         const checkOut = normalizeTime(payload.checkOut);
@@ -312,7 +377,7 @@ export async function mongoHandler<T>(
         };
         await employees.insertOne(emp);
         cacheInvalidate("employees:");
-        return { ok: true, data: publicEmployee(emp) as T };
+        return { ok: true, data: publicEmployee(emp, true) as T };
       }
       case "importEmployees": {
         const list = Array.isArray(payload.employees)
@@ -447,7 +512,7 @@ export async function mongoHandler<T>(
           cacheInvalidate("attendance:");
         }
         cacheInvalidate("employees:");
-        return { ok: true, data: publicEmployee(emp) as T };
+        return { ok: true, data: publicEmployee(emp, true) as T };
       }
       case "deleteEmployee": {
         const name = String(payload.name || "").trim();
@@ -467,7 +532,7 @@ export async function mongoHandler<T>(
         );
         if (!res) return { ok: false, error: "Không tìm thấy nhân viên" };
         cacheInvalidate("employees:");
-        return { ok: true, data: publicEmployee(res) as T };
+        return { ok: true, data: publicEmployee(res, true) as T };
       }
       case "listOt": {
         const nameKey = payload.name ? String(payload.name) : "";
@@ -498,6 +563,9 @@ export async function mongoHandler<T>(
       }
       case "saveOt": {
         const name = String(payload.name || payload.employeeName || "").trim();
+        if (!canActAs(actor, name)) {
+          return { ok: false, error: "Không có quyền" };
+        }
         const date = String(payload.date || "").trim();
         const value = parseOtValue(payload.value);
         if (!name) return { ok: false, error: "Thiếu tên nhân viên" };
@@ -509,6 +577,17 @@ export async function mongoHandler<T>(
         }
         const emp = await employees.findOne({ name, active: true });
         if (!emp) return { ok: false, error: "Không tìm thấy nhân viên" };
+        if (actor?.role !== "admin") {
+          const cfg = cacheGet<AppSettings>(SETTINGS_CACHE);
+          const otWindow = cfg
+            ? normalizeOtWindow(cfg.otWindow)
+            : normalizeOtWindow(
+                (await settings.findOne({ _id: SETTINGS_ID }))?.otWindow
+              );
+          if (!isOtWindowOpen(otWindow)) {
+            return { ok: false, error: employeeOtBlockedMessage(otWindow) };
+          }
+        }
 
         if (!value) {
           await overtime.deleteOne({ employeeName: name, date });
@@ -559,6 +638,9 @@ export async function mongoHandler<T>(
       }
       case "saveMeal": {
         const name = String(payload.name || payload.employeeName || "").trim();
+        if (!canActAs(actor, name)) {
+          return { ok: false, error: "Không có quyền" };
+        }
         const date = String(payload.date || "").trim();
         const { lunch, dinner } = parseMealRecord(payload);
         if (!name) return { ok: false, error: "Thiếu tên nhân viên" };
@@ -601,6 +683,7 @@ export async function mongoHandler<T>(
             ? normalizeColumnColors(doc.columnColors)
             : DEFAULT_COLUMN_COLORS,
           monthColors: normalizeMonthColors(doc?.monthColors),
+          otWindow: normalizeOtWindow(doc?.otWindow),
         };
         cacheSet(SETTINGS_CACHE, data, SETTINGS_TTL);
         return { ok: true, data: data as T };
@@ -611,6 +694,7 @@ export async function mongoHandler<T>(
           ? normalizeColumnColors(doc.columnColors)
           : DEFAULT_COLUMN_COLORS;
         const monthColors = normalizeMonthColors(doc?.monthColors);
+        let otWindow = normalizeOtWindow(doc?.otWindow);
         const monthKey = String(payload.monthKey || "").trim();
         if (monthKey) {
           if (!/^\d{4}-\d{2}$/.test(monthKey)) {
@@ -620,12 +704,26 @@ export async function mongoHandler<T>(
         } else if (payload.columnColors) {
           columnColors = normalizeColumnColors(payload.columnColors);
         }
+        if ("otWindow" in payload) {
+          if (payload.otWindow == null || payload.otWindow === "") {
+            otWindow = null;
+          } else {
+            const next = normalizeOtWindow(payload.otWindow);
+            if (!next) {
+              return {
+                ok: false,
+                error: "Thời gian mở OT không hợp lệ (đến phải sau từ)",
+              };
+            }
+            otWindow = next;
+          }
+        }
         await settings.updateOne(
           { _id: SETTINGS_ID },
-          { $set: { columnColors, monthColors } },
+          { $set: { columnColors, monthColors, otWindow } },
           { upsert: true }
         );
-        const data: AppSettings = { columnColors, monthColors };
+        const data: AppSettings = { columnColors, monthColors, otWindow };
         cacheInvalidate(SETTINGS_CACHE);
         cacheSet(SETTINGS_CACHE, data, SETTINGS_TTL);
         return { ok: true, data: data as T };
