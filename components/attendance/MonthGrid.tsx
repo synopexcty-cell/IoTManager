@@ -6,41 +6,20 @@ import {
   DEFAULT_COLUMN_COLORS,
   WEEKDAY_SHORT,
 } from "@/lib/column-colors";
+import {
+  attendanceCellValue,
+  isLeaveCell,
+  otCellValue,
+  recordWorkplace,
+  type GridCellValue,
+} from "@/lib/grid-cells";
 import { formatOtDisplay } from "@/lib/ot";
 import type { AttendanceRecord, ColumnColors, Employee } from "@/lib/types";
-import {
-  employeeCompany,
-  parseWorkplace,
-  workplaceShort,
-} from "@/lib/workplace";
+import { employeeCompany, workplaceShort } from "@/lib/workplace";
 import { freezeCol } from "@/lib/freeze-cols";
 import { todayCol, todayDayOf } from "@/lib/today-column";
-import { cn, daysInMonth, weekdayOf, workedHours } from "@/lib/utils";
+import { cn, daysInMonth, weekdayOf } from "@/lib/utils";
 import { useEffect, useRef, useState } from "react";
-
-type CellValue = number | "P" | "/" | string | undefined;
-
-function cellFromRecord(rec?: AttendanceRecord): CellValue {
-  if (!rec) return undefined;
-  const note = (rec.note || "").trim().toUpperCase();
-  if (note === "P" || note.includes("PHÉP") || note.includes("PHEP")) return "P";
-  if (note === "/") return "/";
-  const hours = workedHours(rec.checkIn, rec.checkOut);
-  if (hours != null) return hours;
-  if (rec.checkIn) return rec.checkIn;
-  return undefined;
-}
-
-function cellFromEntry(raw?: string): CellValue {
-  if (!raw) return undefined;
-  if (raw === "P" || raw === "/") return raw;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : raw;
-}
-
-function isLeave(value: CellValue) {
-  return value === "P" || value === "/";
-}
 
 function weekdayFill(colors: ColumnColors, year: number, month: number, day: number) {
   return dayFill(colors, year, month, day);
@@ -101,12 +80,12 @@ export function MonthGrid({
   const useEntries = Boolean(entries);
 
   const rows = employees.map((emp, index) => {
-    const cells: CellValue[] = days.map((day) => {
+    const cells: GridCellValue[] = days.map((day) => {
       const date = `${year}-${mm}-${String(day).padStart(2, "0")}`;
       const key = `${emp.name}|${date}`;
       return useEntries
-        ? cellFromEntry(byEntry.get(key))
-        : cellFromRecord(byEmpDate.get(key));
+        ? otCellValue(byEntry.get(key))
+        : attendanceCellValue(byEmpDate.get(key));
     });
     const total = cells.reduce<number>(
       (sum, v) => (typeof v === "number" ? sum + v : sum),
@@ -135,7 +114,7 @@ export function MonthGrid({
     if (editing) inputRef.current?.focus();
   }, [editing]);
 
-  const startEdit = (empName: string, day: number, current: CellValue) => {
+  const startEdit = (empName: string, day: number, current: GridCellValue) => {
     if (!editable) return;
     if (canEditName && !canEditName(empName)) return;
     setEditing({ name: empName, day });
@@ -299,8 +278,8 @@ export function MonthGrid({
                   const day = i + 1;
                   const date = `${year}-${mm}-${String(day).padStart(2, "0")}`;
                   const rec = byEmpDate.get(`${emp.name}|${date}`);
-                  const site = useEntries ? "" : parseWorkplace(rec?.workplace);
-                  const leave = isLeave(value);
+                  const site = useEntries ? "" : recordWorkplace(rec);
+                  const leave = isLeaveCell(value);
                   const bg = leave
                     ? "#000000"
                     : weekdayFill(columnColors, year, month, day);

@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { TableSkeleton } from "@/components/ui/Skeleton";
+import { useToast } from "@/components/ui/Toast";
 import { colorsForMonth, DEFAULT_COLUMN_COLORS } from "@/lib/column-colors";
+import { exportMonthGridXlsx } from "@/lib/export-xlsx";
 import { canSeeAll, workingStaff } from "@/lib/roles";
 import { getSettings, listAttendance, listEmployees } from "@/lib/sheets";
 import type { AttendanceRecord, ColumnColors, Employee } from "@/lib/types";
@@ -21,6 +23,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 export default function HistoryPage() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const seeAll = canSeeAll(user?.role);
   const today = todayISO();
   const [year, setYear] = useState(() => Number(today.slice(0, 4)));
@@ -94,39 +97,26 @@ export default function HistoryPage() {
     [records, visibleNames, site]
   );
 
-  const exportCsv = () => {
-    const header = [
-      "Timestamp",
-      "EmployeeName",
-      "Date",
-      "CheckIn",
-      "CheckOut",
-      "Status",
-      "Workplace",
-      "Note",
-    ];
-    const rows = visibleRecords.map((r) =>
-      [
-        r.timestamp,
-        r.employeeName,
-        r.date,
-        r.checkIn,
-        r.checkOut,
-        r.status,
-        r.workplace || "",
-        r.note,
-      ]
-        .map((c) => `"${String(c).replace(/"/g, '""')}"`)
-        .join(",")
-    );
-    const csv = [header.join(","), ...rows].join("\n");
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `chamcong_${year}-${String(month).padStart(2, "0")}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const exportXlsx = () => {
+    void exportMonthGridXlsx({
+      year,
+      month,
+      employees: visibleEmployees,
+      records: visibleRecords,
+      columnColors,
+      title: `Công SIFLEX — Tháng ${month}/${year}`,
+      hoursLabel: "Giờ",
+      footerLabel: "Tổng người có mặt",
+      notes: [
+        "Note",
+        "P --> Nghỉ phép",
+        "/ --> Nghỉ",
+        "Số = số giờ làm (vào → ra)",
+        "SF = SIFLEX, SX = SYNOPEX (nơi làm trong ngày)",
+      ],
+      filename: `chamcong_${year}-${String(month).padStart(2, "0")}.xlsx`,
+      sheetName: "Cong",
+    }).catch(() => toast("Không xuất được file Excel", "error"));
   };
 
   return (
@@ -200,12 +190,12 @@ export default function HistoryPage() {
           {seeAll && (
             <Button
               variant="outline"
-              onClick={exportCsv}
-              disabled={visibleRecords.length === 0}
+              onClick={exportXlsx}
+              disabled={visibleEmployees.length === 0}
               className="sm:ml-auto"
             >
               <Download className="h-4 w-4" />
-              Xuất CSV
+              Xuất Excel
             </Button>
           )}
         </CardContent>

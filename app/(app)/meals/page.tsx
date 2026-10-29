@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { colorsForMonth, DEFAULT_COLUMN_COLORS } from "@/lib/column-colors";
-import { formatMealCell } from "@/lib/meal";
+import { exportMealGridXlsx } from "@/lib/export-xlsx";
 import { canSeeAll, isAdmin as isAdminRole, isViewer, workingStaff } from "@/lib/roles";
 import {
   getSettings,
@@ -130,27 +130,15 @@ export default function MealsPage() {
     });
   };
 
-  const exportCsv = () => {
-    const header = ["EmployeeName", "Date", "Trua", "Chieu", "Bua"];
-    const rows = visibleRecords.map((r) =>
-      [
-        r.employeeName,
-        r.date,
-        r.lunch ? "T" : "",
-        r.dinner ? "C" : "",
-        formatMealCell(r.lunch, r.dinner),
-      ]
-        .map((c) => `"${String(c).replace(/"/g, '""')}"`)
-        .join(",")
-    );
-    const csv = [header.join(","), ...rows].join("\n");
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `an_ngoai_${year}-${String(month).padStart(2, "0")}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const exportXlsx = () => {
+    void exportMealGridXlsx({
+      year,
+      month,
+      employees: visibleEmployees,
+      records: visibleRecords,
+      columnColors,
+      filename: `an_ngoai_${year}-${String(month).padStart(2, "0")}.xlsx`,
+    }).catch(() => toast("Không xuất được file Excel", "error"));
   };
 
   return (
@@ -220,12 +208,12 @@ export default function MealsPage() {
           {seeAll && (
             <Button
               variant="outline"
-              onClick={exportCsv}
-              disabled={visibleRecords.length === 0}
+              onClick={exportXlsx}
+              disabled={visibleEmployees.length === 0}
               className="sm:ml-auto"
             >
               <Download className="h-4 w-4" />
-              Xuất CSV
+              Xuất Excel
             </Button>
           )}
         </CardContent>

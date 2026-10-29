@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { colorsForMonth, DEFAULT_COLUMN_COLORS } from "@/lib/column-colors";
+import { exportMonthGridXlsx } from "@/lib/export-xlsx";
 import { parseOtValue } from "@/lib/ot";
 import {
   employeeOtBlockedMessage,
@@ -141,21 +142,25 @@ export default function OtPage() {
     });
   };
 
-  const exportCsv = () => {
-    const header = ["EmployeeName", "Date", "OT"];
-    const rows = visibleRecords.map((r) =>
-      [r.employeeName, r.date, r.value]
-        .map((c) => `"${String(c).replace(/"/g, '""')}"`)
-        .join(",")
-    );
-    const csv = [header.join(","), ...rows].join("\n");
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `ot_${year}-${String(month).padStart(2, "0")}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const exportXlsx = () => {
+    void exportMonthGridXlsx({
+      year,
+      month,
+      employees: visibleEmployees,
+      entries: visibleRecords,
+      columnColors,
+      title: `Lịch OT — Tháng ${month}/${year}`,
+      hoursLabel: "Giờ OT",
+      footerLabel: "Tổng người OT",
+      notes: [
+        "Note",
+        "P --> Nghỉ phép",
+        "/ --> Nghỉ",
+        "Số = số giờ OT",
+      ],
+      filename: `ot_${year}-${String(month).padStart(2, "0")}.xlsx`,
+      sheetName: "OT",
+    }).catch(() => toast("Không xuất được file Excel", "error"));
   };
 
   return (
@@ -214,12 +219,12 @@ export default function OtPage() {
           {seeAll && (
             <Button
               variant="outline"
-              onClick={exportCsv}
-              disabled={visibleRecords.length === 0}
+              onClick={exportXlsx}
+              disabled={visibleEmployees.length === 0}
               className="sm:ml-auto"
             >
               <Download className="h-4 w-4" />
-              Xuất CSV
+              Xuất Excel
             </Button>
           )}
         </CardContent>

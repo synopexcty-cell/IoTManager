@@ -2,6 +2,17 @@
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        stream: false,
+        crypto: false,
+      };
+    }
+    return config;
+  },
   async headers() {
     return [
       {
