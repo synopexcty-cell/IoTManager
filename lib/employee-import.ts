@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx";
 import { parseRole } from "./roles";
 import type { Role } from "./types";
+import { parseWorkplace } from "./workplace";
 import {
   isValidPin,
   normalizeEmployeeCode,
@@ -19,6 +20,7 @@ export type ImportRow = {
   birthDate: string;
   team: string;
   shift: string;
+  company: string;
   role: Role;
   error?: string;
 };
@@ -62,6 +64,15 @@ const HEADER_MAP: Record<string, keyof ImportRow> = {
   phongban: "team",
   ca: "shift",
   shift: "shift",
+  noilamviec: "company",
+  vitri: "company",
+  workplace: "company",
+  worklocation: "company",
+  diadiem: "company",
+  congty: "company",
+  donvi: "company",
+  company: "company",
+  site: "company",
   vaitro: "role",
   role: "role",
   chucvu: "role",
@@ -102,6 +113,7 @@ export const IMPORT_HEADERS = [
   "Địa chỉ",
   "Team",
   "Ca",
+  "Đơn vị",
   "Vai trò",
 ] as const;
 
@@ -119,11 +131,12 @@ export function downloadEmployeeTemplate() {
       "Quận 1, TP.HCM",
       "IOT",
       "Hành chính",
+      "SIFLEX",
       "employee",
     ],
   ]);
   ws["!cols"] = IMPORT_HEADERS.map((_, i) => ({
-    wch: [12, 22, 12, 14, 8, 14, 16, 24, 10, 14, 12][i],
+    wch: [12, 22, 12, 14, 8, 14, 16, 24, 10, 14, 12, 12][i],
   }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "NhanVien");
@@ -180,6 +193,7 @@ export async function parseEmployeeFile(file: File): Promise<ImportRow[]> {
       birthDate,
       team: get("team"),
       shift: get("shift"),
+      company: parseWorkplace(get("company")),
       role,
     };
 

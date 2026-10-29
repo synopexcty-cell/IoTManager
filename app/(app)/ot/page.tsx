@@ -19,6 +19,7 @@ import { canSeeAll, isAdmin as isAdminRole, isViewer, workingStaff } from "@/lib
 import { getSettings, listEmployees, listOt, saveOt } from "@/lib/sheets";
 import type { ColumnColors, Employee, OtRecord, OtWindow } from "@/lib/types";
 import { monthRange, todayISO } from "@/lib/utils";
+import { WORKPLACES, matchesCompany } from "@/lib/workplace";
 import { ChevronLeft, ChevronRight, Download, Inbox } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -39,6 +40,7 @@ export default function OtPage() {
   const [otWindow, setOtWindow] = useState<OtWindow | null>(null);
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [loading, setLoading] = useState(true);
+  const [company, setCompany] = useState("");
 
   const { from, to } = useMemo(() => monthRange(year, month), [year, month]);
 
@@ -88,6 +90,22 @@ export default function OtPage() {
   const otOpen = isOtWindowOpen(otWindow, nowTick);
   const canEmployeeEdit = otOpen;
 
+  const visibleEmployees = useMemo(
+    () => employees.filter((e) => matchesCompany(e, company)),
+    [employees, company]
+  );
+  const visibleNames = useMemo(
+    () => new Set(visibleEmployees.map((e) => e.name)),
+    [visibleEmployees]
+  );
+  const visibleRecords = useMemo(
+    () =>
+      company
+        ? records.filter((r) => visibleNames.has(r.employeeName))
+        : records,
+    [records, company, visibleNames]
+  );
+
   const handleCommit = async (employeeName: string, date: string, raw: string) => {
     const parsed = parseOtValue(raw);
     if (parsed == null) {
@@ -125,7 +143,7 @@ export default function OtPage() {
 
   const exportCsv = () => {
     const header = ["EmployeeName", "Date", "OT"];
-    const rows = records.map((r) =>
+    const rows = visibleRecords.map((r) =>
       [r.employeeName, r.date, r.value]
         .map((c) => `"${String(c).replace(/"/g, '""')}"`)
         .join(",")
@@ -177,12 +195,27 @@ export default function OtPage() {
             <Button variant="outline" size="sm" onClick={() => shiftMonth(1)} aria-label="Tháng sau">
               <ChevronRight className="h-4 w-4" />
             </Button>
+            {seeAll && (
+              <select
+                aria-label="Đơn vị"
+                value={company}
+                onChange={(e) => setCompany(e.target.value)}
+                className="h-11 min-h-[44px] rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                <option value="">Tất cả đơn vị</option>
+                {WORKPLACES.map((w) => (
+                  <option key={w} value={w}>
+                    {w}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
           {seeAll && (
             <Button
               variant="outline"
               onClick={exportCsv}
-              disabled={records.length === 0}
+              disabled={visibleRecords.length === 0}
               className="sm:ml-auto"
             >
               <Download className="h-4 w-4" />
@@ -216,7 +249,7 @@ export default function OtPage() {
 
       {loading ? (
         <TableSkeleton />
-      ) : employees.length === 0 ? (
+      ) : visibleEmployees.length === 0 ? (
         <EmptyState
           icon={Inbox}
           title="Không có nhân viên"
@@ -226,8 +259,8 @@ export default function OtPage() {
         <MonthGrid
           year={year}
           month={month}
-          employees={employees}
-          entries={records}
+          employees={visibleEmployees}
+          entries={visibleRecords}
           columnColors={columnColors}
           title={`Lịch OT — Tháng ${month}/${year}`}
           hoursLabel="Giờ OT"

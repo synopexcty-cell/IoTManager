@@ -31,6 +31,11 @@ import {
   statusLabel,
   todayISO,
 } from "@/lib/utils";
+import {
+  WORKPLACES,
+  employeeCompany,
+  parseWorkplace,
+} from "@/lib/workplace";
 import { CalendarDays, LogIn, LogOut, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -46,6 +51,7 @@ export default function AttendancePage() {
   const [timeIn, setTimeIn] = useState("");
   const [timeOut, setTimeOut] = useState("");
   const [note, setNote] = useState("");
+  const [workplace, setWorkplace] = useState("");
   const [today, setToday] = useState<AttendanceRecord | null>(null);
   const [history, setHistory] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,11 +66,11 @@ export default function AttendancePage() {
   }, [user, router]);
 
   useEffect(() => {
-    if (!isAdmin || !user) return;
+    if (!user) return;
     listEmployees().then((list) => {
       const active = workingStaff(list);
       setEmployees(active);
-      setTargetName((prev) => prev || user.name);
+      if (isAdmin) setTargetName((prev) => prev || user.name);
     });
   }, [isAdmin, user]);
 
@@ -81,6 +87,7 @@ export default function AttendancePage() {
     setTimeIn(rec?.checkIn || "");
     setTimeOut(rec?.checkOut || "");
     setNote(rec?.note || "");
+    setWorkplace(parseWorkplace(rec?.workplace) || "");
   }, [subjectName, date]);
 
   useEffect(() => {
@@ -88,8 +95,25 @@ export default function AttendancePage() {
     load().finally(() => setLoading(false));
   }, [load, subjectName]);
 
+  useEffect(() => {
+    if (workplace) return;
+    const last = history.find((r) => parseWorkplace(r.workplace));
+    if (last) {
+      setWorkplace(parseWorkplace(last.workplace));
+      return;
+    }
+    const emp = employees.find((e) => e.name === subjectName);
+    const fallback = employeeCompany(emp || {});
+    if (fallback) setWorkplace(fallback);
+  }, [workplace, history, employees, subjectName]);
+
   const handleCheckIn = async () => {
     if (!user || !subjectName) return;
+    const site = parseWorkplace(workplace);
+    if (!site) {
+      toast("Chọn nơi làm việc hôm nay (SIFLEX hoặc SYNOPEX)", "error");
+      return;
+    }
     setBusy("in");
     try {
       const res = isAdmin
@@ -99,8 +123,9 @@ export default function AttendancePage() {
             checkIn: normalizeTime(timeIn) || nowTime(),
             checkOut: normalizeTime(timeOut) || today?.checkOut || "",
             note,
+            workplace: site,
           })
-        : await checkIn(user.name);
+        : await checkIn(user.name, site);
       if (res.ok) {
         toast("Check-in thành công!", "success");
         await load();
@@ -123,6 +148,7 @@ export default function AttendancePage() {
             checkIn: normalizeTime(timeIn) || today?.checkIn || "",
             checkOut: normalizeTime(timeOut) || nowTime(),
             note,
+            workplace: parseWorkplace(workplace) || today?.workplace,
           })
         : await checkOut(user.name);
       if (res.ok) {
@@ -143,6 +169,11 @@ export default function AttendancePage() {
       toast("Nhập giờ vào (HH:mm)", "error");
       return;
     }
+    const site = parseWorkplace(workplace);
+    if (!site) {
+      toast("Chọn nơi làm việc (SIFLEX hoặc SYNOPEX)", "error");
+      return;
+    }
     setBusy("save");
     try {
       const res = await saveAttendance({
@@ -151,6 +182,7 @@ export default function AttendancePage() {
         checkIn: inTime,
         checkOut: normalizeTime(timeOut),
         note,
+        workplace: site,
       });
       if (res.ok) {
         toast("Đã lưu chấm công", "success");
@@ -210,6 +242,7 @@ export default function AttendancePage() {
                     <option key={emp.name} value={emp.name}>
                       {emp.employeeCode ? `${emp.employeeCode} — ` : ""}
                       {emp.name}
+                      {employeeCompany(emp) ? ` · ${employeeCompany(emp)}` : ""}
                     </option>
                   ))}
                 </select>
@@ -241,6 +274,31 @@ export default function AttendancePage() {
               />
             </div>
           )}
+
+          <div className="flex flex-col gap-1.5">
+            <label
+              htmlFor="att-workplace"
+              className="text-sm font-medium text-neutral-800"
+            >
+              Nơi làm việc hôm nay
+            </label>
+            <select
+              id="att-workplace"
+              value={workplace}
+              onChange={(e) => setWorkplace(e.target.value)}
+              className="h-11 min-h-[44px] w-full rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              <option value="">— Chọn SIFLEX hoặc SYNOPEX —</option>
+              {WORKPLACES.map((w) => (
+                <option key={w} value={w}>
+                  {w}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-neutral-500">
+              Người thuộc đơn vị khác vẫn chọn nơi đang làm trong ngày.
+            </p>
+          </div>
 
           <div className="flex items-center justify-between rounded-lg bg-neutral-50 px-4 py-3">
             <span className="text-sm text-neutral-500">Trạng thái</span>
@@ -349,6 +407,9 @@ export default function AttendancePage() {
                     </p>
                     <p className="text-xs text-neutral-500">
                       {statusLabel(r.status)}
+                      {parseWorkplace(r.workplace)
+                        ? ` · ${parseWorkplace(r.workplace)}`
+                        : ""}
                     </p>
                   </div>
                   <p className="text-sm tabular-nums text-neutral-700">

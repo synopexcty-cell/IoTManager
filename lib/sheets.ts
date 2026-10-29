@@ -206,9 +206,9 @@ export async function changePassword(
   });
 }
 
-export async function checkIn(name: string, note?: string) {
+export async function checkIn(name: string, workplace: string, note?: string) {
   const res = await callSheets<AttendanceRecord>(
-    { action: "checkIn", payload: { name, note } },
+    { action: "checkIn", payload: { name, workplace, note } },
     { queueOnFail: true }
   );
   if (res.ok) clientCacheInvalidateAttendance();
@@ -301,6 +301,7 @@ export async function saveAttendance(payload: {
   checkIn: string;
   checkOut?: string;
   note?: string;
+  workplace?: string;
 }) {
   const res = await callSheets<AttendanceRecord>(
     { action: "saveAttendance", payload },
@@ -322,6 +323,7 @@ export async function addEmployee(payload: {
   birthDate?: string;
   team?: string;
   shift?: string;
+  company?: string;
 }) {
   const res = await callSheets<Employee>(
     {
@@ -335,6 +337,7 @@ export async function addEmployee(payload: {
         birthDate: "",
         team: "",
         shift: "",
+        company: "",
         ...payload,
       },
     },
@@ -357,6 +360,7 @@ export async function importEmployees(
     birthDate?: string;
     team?: string;
     shift?: string;
+    company?: string;
   }>
 ) {
   const res = await callSheets<{
@@ -383,6 +387,9 @@ export async function updateEmployee(payload: {
   address?: string;
   gender?: string;
   birthDate?: string;
+  team?: string;
+  shift?: string;
+  company?: string;
 }) {
   const res = await callSheets<Employee>(
     { action: "updateEmployee", payload },

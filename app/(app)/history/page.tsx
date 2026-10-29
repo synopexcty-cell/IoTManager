@@ -11,6 +11,11 @@ import { canSeeAll, workingStaff } from "@/lib/roles";
 import { getSettings, listAttendance, listEmployees } from "@/lib/sheets";
 import type { AttendanceRecord, ColumnColors, Employee } from "@/lib/types";
 import { monthRange, todayISO } from "@/lib/utils";
+import {
+  WORKPLACES,
+  matchesCompany,
+  parseWorkplace,
+} from "@/lib/workplace";
 import { ChevronLeft, ChevronRight, Download, Inbox } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -26,6 +31,8 @@ export default function HistoryPage() {
     DEFAULT_COLUMN_COLORS
   );
   const [loading, setLoading] = useState(true);
+  const [company, setCompany] = useState("");
+  const [site, setSite] = useState("");
 
   const { from, to } = useMemo(() => monthRange(year, month), [year, month]);
 
@@ -63,6 +70,30 @@ export default function HistoryPage() {
     load();
   }, [load]);
 
+  const visibleEmployees = useMemo(() => {
+    const byCompany = employees.filter((e) => matchesCompany(e, company));
+    if (!site) return byCompany;
+    const names = new Set(
+      records
+        .filter((r) => parseWorkplace(r.workplace) === site)
+        .map((r) => r.employeeName)
+    );
+    return byCompany.filter((e) => names.has(e.name));
+  }, [employees, records, company, site]);
+  const visibleNames = useMemo(
+    () => new Set(visibleEmployees.map((e) => e.name)),
+    [visibleEmployees]
+  );
+  const visibleRecords = useMemo(
+    () =>
+      records.filter((r) => {
+        if (!visibleNames.has(r.employeeName)) return false;
+        if (site && parseWorkplace(r.workplace) !== site) return false;
+        return true;
+      }),
+    [records, visibleNames, site]
+  );
+
   const exportCsv = () => {
     const header = [
       "Timestamp",
@@ -71,10 +102,20 @@ export default function HistoryPage() {
       "CheckIn",
       "CheckOut",
       "Status",
+      "Workplace",
       "Note",
     ];
-    const rows = records.map((r) =>
-      [r.timestamp, r.employeeName, r.date, r.checkIn, r.checkOut, r.status, r.note]
+    const rows = visibleRecords.map((r) =>
+      [
+        r.timestamp,
+        r.employeeName,
+        r.date,
+        r.checkIn,
+        r.checkOut,
+        r.status,
+        r.workplace || "",
+        r.note,
+      ]
         .map((c) => `"${String(c).replace(/"/g, '""')}"`)
         .join(",")
     );
@@ -125,12 +166,42 @@ export default function HistoryPage() {
             <Button variant="outline" size="sm" onClick={() => shiftMonth(1)} aria-label="Tháng sau">
               <ChevronRight className="h-4 w-4" />
             </Button>
+            {seeAll && (
+              <>
+                <select
+                  aria-label="Đơn vị"
+                  value={company}
+                  onChange={(e) => setCompany(e.target.value)}
+                  className="h-11 min-h-[44px] rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                >
+                  <option value="">Tất cả đơn vị</option>
+                  {WORKPLACES.map((w) => (
+                    <option key={w} value={w}>
+                      {w}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  aria-label="Nơi làm việc"
+                  value={site}
+                  onChange={(e) => setSite(e.target.value)}
+                  className="h-11 min-h-[44px] rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                >
+                  <option value="">Tất cả nơi làm</option>
+                  {WORKPLACES.map((w) => (
+                    <option key={w} value={w}>
+                      {w}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
           </div>
           {seeAll && (
             <Button
               variant="outline"
               onClick={exportCsv}
-              disabled={records.length === 0}
+              disabled={visibleRecords.length === 0}
               className="sm:ml-auto"
             >
               <Download className="h-4 w-4" />
@@ -142,7 +213,7 @@ export default function HistoryPage() {
 
       {loading ? (
         <TableSkeleton />
-      ) : employees.length === 0 ? (
+      ) : visibleEmployees.length === 0 ? (
         <EmptyState
           icon={Inbox}
           title="Không có nhân viên"
@@ -152,8 +223,8 @@ export default function HistoryPage() {
         <MonthGrid
           year={year}
           month={month}
-          employees={employees}
-          records={records}
+          employees={visibleEmployees}
+          records={visibleRecords}
           columnColors={columnColors}
           title={`Công SIFLEX — Tháng ${month}/${year}`}
         />

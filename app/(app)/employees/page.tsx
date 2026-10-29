@@ -31,10 +31,11 @@ import {
 } from "@/lib/sheets";
 import { roleLabel } from "@/lib/roles";
 import type { Employee, Role } from "@/lib/types";
+import { WORKPLACES, employeeCompany } from "@/lib/workplace";
 import { formatShortDate, isValidPin } from "@/lib/utils";
 import { FileSpreadsheet, Pencil, Trash2, UserPlus, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type ModalMode = "add" | "edit";
 
@@ -49,6 +50,7 @@ const emptyForm = {
   address: "",
   gender: "",
   birthDate: "",
+  company: "",
 };
 
 export default function EmployeesPage() {
@@ -66,6 +68,7 @@ export default function EmployeesPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [importRows, setImportRows] = useState<ImportRow[]>([]);
   const [importing, setImporting] = useState(false);
+  const [companyFilter, setCompanyFilter] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   const setField = <K extends keyof typeof emptyForm>(
@@ -112,6 +115,7 @@ export default function EmployeesPage() {
       address: emp.address || "",
       gender: emp.gender || "",
       birthDate: emp.birthDate || "",
+      company: employeeCompany(emp),
     });
     setModalOpen(true);
   };
@@ -147,6 +151,7 @@ export default function EmployeesPage() {
           address: form.address.trim(),
           gender: form.gender,
           birthDate: form.birthDate,
+          company: form.company,
         });
         if (res.ok) {
           toast("Đã thêm nhân viên", "success");
@@ -175,6 +180,7 @@ export default function EmployeesPage() {
         address: form.address.trim(),
         gender: form.gender,
         birthDate: form.birthDate,
+        company: form.company,
       });
       if (res.ok) {
         toast("Đã cập nhật nhân viên", "success");
@@ -259,6 +265,14 @@ export default function EmployeesPage() {
     }
   };
 
+  const visible = useMemo(
+    () =>
+      employees.filter((e) =>
+        companyFilter ? employeeCompany(e) === companyFilter : true
+      ),
+    [employees, companyFilter]
+  );
+
   if (!user || user.role !== "admin") {
     return (
       <div className="flex justify-center py-20">
@@ -295,7 +309,7 @@ export default function EmployeesPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-neutral-500">
-          Quản lý hồ sơ nhân viên (mã NV, giới tính, ngày sinh, SĐT, CCCD…)
+          Quản lý hồ sơ nhân viên (đơn vị SIFLEX / SYNOPEX, mã NV…)
         </p>
         <div className="flex flex-wrap gap-2">
           <input
@@ -305,6 +319,19 @@ export default function EmployeesPage() {
             className="hidden"
             onChange={(e) => handlePickFile(e.target.files?.[0])}
           />
+          <select
+            aria-label="Đơn vị"
+            value={companyFilter}
+            onChange={(e) => setCompanyFilter(e.target.value)}
+            className="h-11 min-h-[44px] rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+          >
+            <option value="">Tất cả đơn vị</option>
+            {WORKPLACES.map((w) => (
+              <option key={w} value={w}>
+                {w}
+              </option>
+            ))}
+          </select>
           <Button variant="outline" onClick={downloadEmployeeTemplate}>
             <FileSpreadsheet className="h-4 w-4" />
             Tải mẫu Excel
@@ -347,7 +374,7 @@ export default function EmployeesPage() {
               <CardTitle>
                 Nhân viên{" "}
                 <span className="font-normal text-neutral-400">
-                  ({employees.length})
+                  ({visible.length})
                 </span>
               </CardTitle>
             </CardHeader>
@@ -357,6 +384,7 @@ export default function EmployeesPage() {
                   <TableRow>
                     <TableHead>Mã NV</TableHead>
                     <TableHead>Họ tên</TableHead>
+                    <TableHead>Đơn vị</TableHead>
                     <TableHead>Giới tính</TableHead>
                     <TableHead>Ngày sinh</TableHead>
                     <TableHead>SĐT</TableHead>
@@ -369,7 +397,7 @@ export default function EmployeesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {employees.map((emp) => (
+                  {visible.map((emp) => (
                     <TableRow key={emp.name}>
                       <TableCell className="font-medium tabular-nums">
                         {emp.employeeCode || "—"}
@@ -377,6 +405,7 @@ export default function EmployeesPage() {
                       <TableCell className="max-w-[180px] truncate font-medium" title={emp.address || emp.name}>
                         {emp.name}
                       </TableCell>
+                      <TableCell>{employeeCompany(emp) || "—"}</TableCell>
                       <TableCell>{emp.gender || "—"}</TableCell>
                       <TableCell className="tabular-nums">
                         {emp.birthDate ? formatShortDate(emp.birthDate) : "—"}
@@ -412,7 +441,7 @@ export default function EmployeesPage() {
           </Card>
 
           <div className="space-y-1.5 md:hidden">
-            {employees.map((emp) => (
+            {visible.map((emp) => (
               <Card key={emp.name} className="px-3 py-2">
                 <div className="flex items-center gap-2">
                   <div className="min-w-0 flex-1">
@@ -423,6 +452,7 @@ export default function EmployeesPage() {
                       </span>
                     </p>
                     <p className="truncate text-xs text-neutral-500">
+                      {employeeCompany(emp) ? `${employeeCompany(emp)} · ` : ""}
                       {roleLabel(emp.role)}
                       {emp.phone ? ` · ${emp.phone}` : ""}
                       {" · "}
@@ -531,6 +561,27 @@ export default function EmployeesPage() {
           />
           <div className="flex flex-col gap-1.5">
             <label
+              htmlFor="emp-company"
+              className="text-sm font-medium text-neutral-800"
+            >
+              Đơn vị (người của)
+            </label>
+            <select
+              id="emp-company"
+              value={form.company}
+              onChange={(e) => setField("company", e.target.value)}
+              className="h-11 min-h-[44px] w-full rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              <option value="">— Chưa chọn</option>
+              {WORKPLACES.map((w) => (
+                <option key={w} value={w}>
+                  {w}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label
               htmlFor="emp-role"
               className="text-sm font-medium text-neutral-800"
             >
@@ -599,6 +650,7 @@ export default function EmployeesPage() {
                 <th className="px-2 py-2">Ngày sinh</th>
                 <th className="px-2 py-2">PIN</th>
                 <th className="px-2 py-2">Team</th>
+                <th className="px-2 py-2">Đơn vị</th>
                 <th className="px-2 py-2">Ghi chú</th>
               </tr>
             </thead>
@@ -616,6 +668,7 @@ export default function EmployeesPage() {
                   </td>
                   <td className="px-2 py-1.5 tabular-nums">{r.pin}</td>
                   <td className="px-2 py-1.5">{r.team || "—"}</td>
+                  <td className="px-2 py-1.5">{r.company || "—"}</td>
                   <td className="px-2 py-1.5 text-xs">{r.error || "OK"}</td>
                 </tr>
               ))}

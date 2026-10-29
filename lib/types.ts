@@ -19,6 +19,8 @@ export interface Employee {
   birthDate?: string;
   team?: string;
   shift?: string;
+  /** Đơn vị: người của SIFLEX | SYNOPEX */
+  company?: string;
   /** true = lần đầu / mật khẩu tạm, bắt đổi khi đăng nhập */
   mustChangePassword?: boolean;
 }
@@ -31,6 +33,8 @@ export interface AttendanceRecord {
   checkOut: string; // HH:mm or empty
   status: AttendanceStatus;
   note: string;
+  /** Nơi làm việc trong ngày: SIFLEX | SYNOPEX */
+  workplace?: string;
 }
 
 export interface OtRecord {

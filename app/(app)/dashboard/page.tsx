@@ -144,6 +144,7 @@ export default function DashboardPage() {
                   >
                     <span className="truncate text-neutral-600">
                       {r.employeeName}
+                      {r.workplace ? ` · ${r.workplace}` : ""}
                     </span>
                     <span className="shrink-0 font-medium tabular-nums text-black">
                       {r.checkIn || "—"} → {r.checkOut || "—"}
@@ -182,7 +183,7 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="flex gap-4 text-sm text-neutral-600">
+            <div className="flex flex-wrap gap-4 text-sm text-neutral-600">
               <span className="flex items-center gap-1.5">
                 <LogIn className="h-4 w-4 text-neutral-400" />
                 {today?.checkIn || "—"}
@@ -191,6 +192,9 @@ export default function DashboardPage() {
                 <LogOut className="h-4 w-4 text-neutral-400" />
                 {today?.checkOut || "—"}
               </span>
+              {today?.workplace ? (
+                <span className="font-medium text-black">{today.workplace}</span>
+              ) : null}
             </div>
           </CardContent>
         </Card>
@@ -234,6 +238,7 @@ export default function DashboardPage() {
                     </span>
                     <span className="font-medium text-black">
                       {r.checkIn || "—"} → {r.checkOut || "—"}
+                      {r.workplace ? ` · ${r.workplace}` : ""}
                     </span>
                   </li>
                 ))}

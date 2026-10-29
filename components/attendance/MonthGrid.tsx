@@ -8,6 +8,11 @@ import {
 } from "@/lib/column-colors";
 import { formatOtDisplay } from "@/lib/ot";
 import type { AttendanceRecord, ColumnColors, Employee } from "@/lib/types";
+import {
+  employeeCompany,
+  parseWorkplace,
+  workplaceShort,
+} from "@/lib/workplace";
 import { freezeCol } from "@/lib/freeze-cols";
 import { todayCol, todayDayOf } from "@/lib/today-column";
 import { cn, daysInMonth, weekdayOf, workedHours } from "@/lib/utils";
@@ -284,9 +289,17 @@ export function MonthGrid({
                 )}
                 <td className={cn(td, freezeCol.name, "text-left font-medium")}>
                   {emp.name}
+                  {employeeCompany(emp) ? (
+                    <span className="mt-0.5 block text-[10px] font-normal text-neutral-500">
+                      {employeeCompany(emp)}
+                    </span>
+                  ) : null}
                 </td>
                 {cells.map((value, i) => {
                   const day = i + 1;
+                  const date = `${year}-${mm}-${String(day).padStart(2, "0")}`;
+                  const rec = byEmpDate.get(`${emp.name}|${date}`);
+                  const site = useEntries ? "" : parseWorkplace(rec?.workplace);
                   const leave = isLeave(value);
                   const bg = leave
                     ? "#000000"
@@ -296,6 +309,12 @@ export function MonthGrid({
                   const allow =
                     editable && (!canEditName || canEditName(emp.name));
                   const isToday = day === todayDay;
+                  const titleBits = [
+                    isToday ? "Hôm nay" : "",
+                    site,
+                    value !== undefined ? String(formatOtDisplay(value)) : "",
+                    onPaintDay ? `Tô ngày ${day}` : "",
+                  ].filter(Boolean);
                   return (
                     <td
                       key={`${emp.name}-${day}`}
@@ -311,13 +330,7 @@ export function MonthGrid({
                         backgroundColor: bg,
                         color: leave ? "#ffffff" : contrastText(bg),
                       }}
-                      title={
-                        isToday
-                          ? "Hôm nay"
-                          : onPaintDay
-                            ? `Tô ngày ${day}`
-                            : undefined
-                      }
+                      title={titleBits.join(" · ") || undefined}
                       onClick={() => {
                         if (allow) startEdit(emp.name, day, value);
                         else onPaintDay?.(day);
@@ -345,7 +358,14 @@ export function MonthGrid({
                       ) : value === undefined ? (
                         ""
                       ) : (
-                        formatOtDisplay(value)
+                        <span className="block leading-tight">
+                          {formatOtDisplay(value)}
+                          {site ? (
+                            <span className="mt-0.5 block text-[9px] font-semibold leading-none opacity-80">
+                              {workplaceShort(site)}
+                            </span>
+                          ) : null}
+                        </span>
                       )}
                     </td>
                   );
@@ -428,6 +448,11 @@ export function MonthGrid({
             <span className="font-bold text-red-600">/</span> {"-->"} Nghỉ
           </p>
           <p className="mt-1 text-neutral-600">{noteHours}</p>
+          {!useEntries && (
+            <p className="mt-1 text-neutral-600">
+              SF = SIFLEX, SX = SYNOPEX (nơi làm trong ngày)
+            </p>
+          )}
         </div>
       )}
     </div>

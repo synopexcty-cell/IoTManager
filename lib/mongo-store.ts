@@ -32,6 +32,7 @@ import {
   parseGender,
   todayISO,
 } from "./utils";
+import { employeeCompany, parseWorkplace } from "./workplace";
 
 const SETTINGS_ID = "app";
 const SETTINGS_CACHE = "settings:app";
@@ -47,7 +48,7 @@ type SettingsDoc = {
 const EMP_TTL = 30_000;
 const ATT_TTL = 15_000;
 
-type EmpDoc = Employee & { _id?: unknown };
+type EmpDoc = Employee & { _id?: unknown; workplace?: string };
 type AttDoc = AttendanceRecord & { _id?: unknown };
 type OtDoc = OtRecord & { _id?: unknown };
 type MealDoc = MealRecord & { _id?: unknown };
@@ -60,6 +61,7 @@ function publicEmployee(emp: EmpDoc, includePii: boolean) {
     employeeCode: emp.employeeCode || "",
     team: emp.team || "",
     shift: emp.shift || "",
+    company: employeeCompany(emp),
     phone: "",
     cccd: "",
     address: "",
@@ -284,6 +286,13 @@ export async function mongoHandler<T>(
         if (existing?.checkIn) {
           return { ok: false, error: "Bạn đã check-in hôm nay" };
         }
+        const workplace = parseWorkplace(payload.workplace);
+        if (!workplace) {
+          return {
+            ok: false,
+            error: "Chọn nơi làm việc hôm nay (SIFLEX hoặc SYNOPEX)",
+          };
+        }
         const record: AttendanceRecord = {
           timestamp: new Date().toISOString(),
           employeeName: name,
@@ -292,6 +301,7 @@ export async function mongoHandler<T>(
           checkOut: "",
           status: "checked_in",
           note: String(payload.note || ""),
+          workplace,
         };
         if (existing) {
           await attendance.updateOne(
@@ -346,6 +356,16 @@ export async function mongoHandler<T>(
         }
         const emp = await employees.findOne({ name, active: true });
         if (!emp) return { ok: false, error: "Không tìm thấy nhân viên" };
+        const existing = await attendance.findOne({ employeeName: name, date });
+        const workplace =
+          parseWorkplace(payload.workplace) ||
+          parseWorkplace(existing?.workplace);
+        if (!workplace) {
+          return {
+            ok: false,
+            error: "Chọn nơi làm việc (SIFLEX hoặc SYNOPEX)",
+          };
+        }
         const record: AttendanceRecord = {
           timestamp: new Date().toISOString(),
           employeeName: name,
@@ -354,6 +374,7 @@ export async function mongoHandler<T>(
           checkOut,
           status: checkOut ? "checked_out" : "checked_in",
           note,
+          workplace,
         };
         await attendance.updateOne(
           { employeeName: name, date },
@@ -377,6 +398,7 @@ export async function mongoHandler<T>(
         const birthDate = parseBirthDate(payload.birthDate);
         const team = String(payload.team || "").trim();
         const shift = String(payload.shift || "").trim();
+        const company = parseWorkplace(payload.company || payload.workplace);
         if (!name || !employeeCode || !isValidPin(pin)) {
           return { ok: false, error: "Họ tên, mã NV và mật khẩu 4–8 số là bắt buộc" };
         }
@@ -399,6 +421,7 @@ export async function mongoHandler<T>(
           birthDate,
           team,
           shift,
+          company,
           mustChangePassword: true,
         };
         await employees.insertOne(emp);
@@ -463,6 +486,7 @@ export async function mongoHandler<T>(
             birthDate: parseBirthDate(raw.birthDate),
             team: String(raw.team || "").trim(),
             shift: String(raw.shift || "").trim(),
+            company: parseWorkplace(raw.company || raw.workplace),
             mustChangePassword: true,
           });
         });
@@ -514,6 +538,10 @@ export async function mongoHandler<T>(
 
         const team = String(payload.team ?? prev.team ?? "").trim();
         const shift = String(payload.shift ?? prev.shift ?? "").trim();
+        const company =
+          payload.company !== undefined || payload.workplace !== undefined
+            ? parseWorkplace(payload.company || payload.workplace)
+            : employeeCompany(prev);
         const emp: Employee = {
           name,
           pin: pinRaw || prev.pin || "",
@@ -527,9 +555,13 @@ export async function mongoHandler<T>(
           birthDate,
           team,
           shift,
+          company,
           ...(pinRaw ? { mustChangePassword: true } : {}),
         };
-        await employees.updateOne({ name: originalName }, { $set: emp });
+        await employees.updateOne(
+          { name: originalName },
+          { $set: emp, $unset: { workplace: "" } }
+        );
         if (name !== originalName) {
           await attendance.updateMany(
             { employeeName: originalName },
