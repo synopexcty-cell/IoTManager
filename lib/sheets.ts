@@ -30,6 +30,7 @@ import type {
   AttendanceRecord,
   Employee,
   LoginRosterItem,
+  Role,
   MealRecord,
   OtRecord,
   SheetsRequest,
@@ -178,7 +179,7 @@ export async function listAttendance(
 export async function verifyPin(employeeCode: string, pin: string) {
   return callSheets<{
     name: string;
-    role: "employee" | "admin";
+    role: Role;
     employeeCode: string;
     mustChangePassword: boolean;
     token: string;
@@ -195,7 +196,7 @@ export async function changePassword(
 ) {
   return callSheets<{
     name: string;
-    role: "employee" | "admin";
+    role: Role;
     employeeCode: string;
     mustChangePassword: boolean;
     token: string;
@@ -312,7 +313,7 @@ export async function saveAttendance(payload: {
 export async function addEmployee(payload: {
   name: string;
   pin: string;
-  role?: "employee" | "admin";
+  role?: Role;
   employeeCode: string;
   phone?: string;
   cccd?: string;
@@ -347,7 +348,7 @@ export async function importEmployees(
   rows: Array<{
     name: string;
     pin: string;
-    role?: "employee" | "admin";
+    role?: Role;
     employeeCode: string;
     phone?: string;
     cccd?: string;
@@ -374,7 +375,7 @@ export async function updateEmployee(payload: {
   originalName: string;
   name: string;
   pin?: string;
-  role: "employee" | "admin";
+  role: Role;
   active: boolean;
   employeeCode: string;
   phone?: string;

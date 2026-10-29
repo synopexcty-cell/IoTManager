@@ -28,6 +28,7 @@ import {
   normalizeOtWindow,
   otWindowStatus,
 } from "@/lib/ot-window";
+import { roleLabel } from "@/lib/roles";
 import { flushOfflineQueue, getSettings, updateSettings } from "@/lib/sheets";
 import type { AppSettings, ColumnColors, Employee } from "@/lib/types";
 import { daysInMonth, nowDateTimeLocal, todayISO, weekdayOf } from "@/lib/utils";
@@ -291,7 +292,7 @@ export default function SettingsPage() {
           <div className="flex justify-between text-sm">
             <span className="text-neutral-500">Vai trò</span>
             <span className="font-medium text-black">
-              {isAdmin ? "Quản trị" : "Nhân viên"}
+              {roleLabel(user?.role)}
             </span>
           </div>
         </CardContent>

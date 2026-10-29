@@ -1,4 +1,6 @@
 import * as XLSX from "xlsx";
+import { parseRole } from "./roles";
+import type { Role } from "./types";
 import {
   isValidPin,
   normalizeEmployeeCode,
@@ -17,7 +19,7 @@ export type ImportRow = {
   birthDate: string;
   team: string;
   shift: string;
-  role: "employee" | "admin";
+  role: Role;
   error?: string;
 };
 
@@ -87,12 +89,6 @@ function cellStr(v: unknown): string {
     return String(v);
   }
   return String(v).trim();
-}
-
-function parseRole(raw: string): "employee" | "admin" {
-  const s = strip(raw);
-  if (s.includes("admin") || s.includes("quantri") || s === "ql") return "admin";
-  return "employee";
 }
 
 export const IMPORT_HEADERS = [

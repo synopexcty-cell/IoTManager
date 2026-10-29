@@ -1,17 +1,18 @@
 "use client";
 
 import { getNavItems } from "@/lib/nav";
+import type { Role } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 interface BottomNavProps {
-  isAdmin: boolean;
+  role: Role;
 }
 
-export function BottomNav({ isAdmin }: BottomNavProps) {
+export function BottomNav({ role }: BottomNavProps) {
   const pathname = usePathname();
-  const items = getNavItems(isAdmin);
+  const items = getNavItems(role);
 
   return (
     <nav

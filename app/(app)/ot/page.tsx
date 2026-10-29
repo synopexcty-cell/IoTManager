@@ -15,6 +15,7 @@ import {
   isOtWindowOpen,
   normalizeOtWindow,
 } from "@/lib/ot-window";
+import { canSeeAll, isAdmin as isAdminRole, isViewer, workingStaff } from "@/lib/roles";
 import { getSettings, listEmployees, listOt, saveOt } from "@/lib/sheets";
 import type { ColumnColors, Employee, OtRecord, OtWindow } from "@/lib/types";
 import { monthRange, todayISO } from "@/lib/utils";
@@ -24,7 +25,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 export default function OtPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const isAdmin = user?.role === "admin";
+  const isAdmin = isAdminRole(user?.role);
+  const seeAll = canSeeAll(user?.role);
+  const viewer = isViewer(user?.role);
   const today = todayISO();
   const [year, setYear] = useState(() => Number(today.slice(0, 4)));
   const [month, setMonth] = useState(() => Number(today.slice(5, 7)));
@@ -55,14 +58,14 @@ export default function OtPage() {
           {
             from,
             to,
-            name: isAdmin ? undefined : user.name,
+            name: seeAll ? undefined : user.name,
           },
           { force: true }
         ),
         getSettings({ force: true }),
       ]);
-      const list = isAdmin
-        ? emps.filter((e) => e.active)
+      const list = seeAll
+        ? workingStaff(emps)
         : emps.filter((e) => e.name === user.name);
       setEmployees(list);
       setRecords(ot);
@@ -71,7 +74,7 @@ export default function OtPage() {
     } finally {
       setLoading(false);
     }
-  }, [user, from, to, isAdmin, year, month]);
+  }, [user, from, to, seeAll, year, month]);
 
   useEffect(() => {
     load();
@@ -90,6 +93,10 @@ export default function OtPage() {
     if (parsed == null) {
       toast("Giờ OT không hợp lệ (0–24, P hoặc /)", "error");
       throw new Error("invalid");
+    }
+    if (viewer) {
+      toast("Tài khoản chỉ xem — không được sửa", "error");
+      throw new Error("viewer");
     }
     if (!isAdmin && !isOtWindowOpen(otWindow)) {
       toast(employeeOtBlockedMessage(otWindow), "error");
@@ -171,7 +178,7 @@ export default function OtPage() {
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
-          {isAdmin && (
+          {seeAll && (
             <Button
               variant="outline"
               onClick={exportCsv}
@@ -187,20 +194,24 @@ export default function OtPage() {
 
       <div
         className={`rounded-lg px-4 py-3 text-sm ${
-          isAdmin
+          viewer
             ? "bg-neutral-50 text-neutral-700"
-            : otOpen
-              ? "bg-emerald-50 text-emerald-800"
-              : "bg-amber-50 text-amber-800"
+            : isAdmin
+              ? "bg-neutral-50 text-neutral-700"
+              : otOpen
+                ? "bg-emerald-50 text-emerald-800"
+                : "bg-amber-50 text-amber-800"
         }`}
       >
-        {isAdmin
-          ? otOpen && otWindow
-            ? `Nhân viên đang được đăng ký OT đến ${formatOtLocal(otWindow.to)}. Quản trị luôn sửa được.`
-            : `${employeeOtBlockedMessage(otWindow, nowTick)} Quản trị vẫn sửa được.`
-          : otOpen && otWindow
-            ? `Đang mở đăng ký OT đến ${formatOtLocal(otWindow.to)}.`
-            : employeeOtBlockedMessage(otWindow, nowTick)}
+        {viewer
+          ? "Tài khoản chỉ xem — không đăng ký hoặc sửa OT."
+          : isAdmin
+            ? otOpen && otWindow
+              ? `Nhân viên đang được đăng ký OT đến ${formatOtLocal(otWindow.to)}. Quản trị luôn sửa được.`
+              : `${employeeOtBlockedMessage(otWindow, nowTick)} Quản trị vẫn sửa được.`
+            : otOpen && otWindow
+              ? `Đang mở đăng ký OT đến ${formatOtLocal(otWindow.to)}.`
+              : employeeOtBlockedMessage(otWindow, nowTick)}
       </div>
 
       {loading ? (
@@ -222,13 +233,15 @@ export default function OtPage() {
           hoursLabel="Giờ OT"
           footerLabel="Tổng người OT"
           noteHours={
-            isAdmin || canEmployeeEdit
-              ? "Số = số giờ OT. Bấm vào ô để đăng ký (P = phép, / = nghỉ, xóa ô = bỏ)."
-              : "Chỉ xem — ngoài thời gian đăng ký OT."
+            viewer
+              ? "Tài khoản chỉ xem."
+              : isAdmin || canEmployeeEdit
+                ? "Số = số giờ OT. Bấm vào ô để đăng ký (P = phép, / = nghỉ, xóa ô = bỏ)."
+                : "Chỉ xem — ngoài thời gian đăng ký OT."
           }
-          editable={isAdmin || canEmployeeEdit}
+          editable={!viewer && (isAdmin || canEmployeeEdit)}
           canEditName={(name) =>
-            isAdmin || (canEmployeeEdit && name === user?.name)
+            !viewer && (isAdmin || (canEmployeeEdit && name === user?.name))
           }
           onCommit={handleCommit}
         />

@@ -1,4 +1,5 @@
 import { getDb, hasMongoUri } from "@/lib/mongodb";
+import { isViewOnly } from "@/lib/roles";
 import { bearerToken, verifySession } from "@/lib/session";
 import { getDataConfig, callSheetsServer } from "@/lib/sheets-server";
 import type { SheetsAction, SheetsRequest } from "@/lib/types";
@@ -12,6 +13,14 @@ const ADMIN_ACTIONS: SheetsAction[] = [
   "deleteEmployee",
   "deactivateEmployee",
   "updateSettings",
+];
+const WRITE_ACTIONS: SheetsAction[] = [
+  "checkIn",
+  "checkOut",
+  "saveAttendance",
+  "saveOt",
+  "saveMeal",
+  ...ADMIN_ACTIONS,
 ];
 
 const ALLOWED: SheetsAction[] = [
@@ -99,6 +108,12 @@ export async function POST(req: Request) {
   if (ADMIN_ACTIONS.includes(action) && actor?.role !== "admin") {
     return NextResponse.json(
       { ok: false, error: "Không có quyền" },
+      { status: 403 }
+    );
+  }
+  if (WRITE_ACTIONS.includes(action) && isViewOnly(actor?.role)) {
+    return NextResponse.json(
+      { ok: false, error: "Tài khoản chỉ xem — không được sửa" },
       { status: 403 }
     );
   }

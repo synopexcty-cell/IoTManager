@@ -29,6 +29,7 @@ import {
   listEmployees,
   updateEmployee,
 } from "@/lib/sheets";
+import { roleLabel } from "@/lib/roles";
 import type { Employee, Role } from "@/lib/types";
 import { formatShortDate, isValidPin } from "@/lib/utils";
 import { FileSpreadsheet, Pencil, Trash2, UserPlus, Users } from "lucide-react";
@@ -387,7 +388,7 @@ export default function EmployeesPage() {
                         {emp.cccd || "—"}
                       </TableCell>
                       <TableCell>
-                        {emp.role === "admin" ? "Quản trị" : "Nhân viên"}
+                        {roleLabel(emp.role)}
                       </TableCell>
                       <TableCell>
                         <span
@@ -422,7 +423,7 @@ export default function EmployeesPage() {
                       </span>
                     </p>
                     <p className="truncate text-xs text-neutral-500">
-                      {emp.role === "admin" ? "Quản trị" : "Nhân viên"}
+                      {roleLabel(emp.role)}
                       {emp.phone ? ` · ${emp.phone}` : ""}
                       {" · "}
                       {emp.active ? "Hoạt động" : "Đã khóa"}
@@ -542,6 +543,9 @@ export default function EmployeesPage() {
               className="h-11 min-h-[44px] w-full rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
             >
               <option value="employee">Nhân viên</option>
+              <option value="hr">HR (chỉ xem)</option>
+              <option value="accountant">Kế toán (chỉ xem)</option>
+              <option value="viewer">Chỉ xem</option>
               <option value="admin">Quản trị</option>
             </select>
           </div>

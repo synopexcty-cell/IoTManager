@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { colorsForMonth, DEFAULT_COLUMN_COLORS } from "@/lib/column-colors";
+import { canSeeAll, workingStaff } from "@/lib/roles";
 import { getSettings, listAttendance, listEmployees } from "@/lib/sheets";
 import type { AttendanceRecord, ColumnColors, Employee } from "@/lib/types";
 import { monthRange, todayISO } from "@/lib/utils";
@@ -15,7 +16,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 export default function HistoryPage() {
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
+  const seeAll = canSeeAll(user?.role);
   const today = todayISO();
   const [year, setYear] = useState(() => Number(today.slice(0, 4)));
   const [month, setMonth] = useState(() => Number(today.slice(5, 7)));
@@ -43,12 +44,12 @@ export default function HistoryPage() {
         listAttendance({
           from,
           to,
-          name: isAdmin ? undefined : user.name,
+          name: seeAll ? undefined : user.name,
         }),
         getSettings(),
       ]);
-      const list = isAdmin
-        ? emps.filter((e) => e.active)
+      const list = seeAll
+        ? workingStaff(emps)
         : emps.filter((e) => e.name === user.name);
       setEmployees(list);
       setRecords(att);
@@ -56,7 +57,7 @@ export default function HistoryPage() {
     } finally {
       setLoading(false);
     }
-  }, [user, from, to, isAdmin, year, month]);
+  }, [user, from, to, seeAll, year, month]);
 
   useEffect(() => {
     load();
@@ -125,7 +126,7 @@ export default function HistoryPage() {
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
-          {isAdmin && (
+          {seeAll && (
             <Button
               variant="outline"
               onClick={exportCsv}

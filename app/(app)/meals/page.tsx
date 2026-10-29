@@ -9,6 +9,7 @@ import { TableSkeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { colorsForMonth, DEFAULT_COLUMN_COLORS } from "@/lib/column-colors";
 import { formatMealCell } from "@/lib/meal";
+import { canSeeAll, isAdmin as isAdminRole, isViewer, workingStaff } from "@/lib/roles";
 import {
   getSettings,
   listEmployees,
@@ -23,7 +24,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 export default function MealsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const isAdmin = user?.role === "admin";
+  const isAdmin = isAdminRole(user?.role);
+  const seeAll = canSeeAll(user?.role);
+  const viewer = isViewer(user?.role);
   const today = todayISO();
   const [year, setYear] = useState(() => Number(today.slice(0, 4)));
   const [month, setMonth] = useState(() => Number(today.slice(5, 7)));
@@ -52,14 +55,14 @@ export default function MealsPage() {
           {
             from,
             to,
-            name: isAdmin ? undefined : user.name,
+            name: seeAll ? undefined : user.name,
           },
           { force: true }
         ),
         getSettings(),
       ]);
-      const list = isAdmin
-        ? emps.filter((e) => e.active)
+      const list = seeAll
+        ? workingStaff(emps)
         : emps.filter((e) => e.name === user.name);
       setEmployees(list);
       setRecords(meals);
@@ -67,7 +70,7 @@ export default function MealsPage() {
     } finally {
       setLoading(false);
     }
-  }, [user, from, to, isAdmin, year, month]);
+  }, [user, from, to, seeAll, year, month]);
 
   useEffect(() => {
     load();
@@ -78,6 +81,10 @@ export default function MealsPage() {
     date: string,
     next: { lunch: boolean; dinner: boolean }
   ) => {
+    if (viewer) {
+      toast("Tài khoản chỉ xem — không được sửa", "error");
+      throw new Error("viewer");
+    }
     const res = await saveMeal({
       name: employeeName,
       date,
@@ -177,7 +184,7 @@ export default function MealsPage() {
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
-          {isAdmin && (
+          {seeAll && (
             <Button
               variant="outline"
               onClick={exportCsv}
@@ -206,7 +213,9 @@ export default function MealsPage() {
           employees={employees}
           records={records}
           columnColors={columnColors}
-          canEditName={(name) => isAdmin || name === user?.name}
+          canEditName={(name) =>
+            !viewer && (isAdmin || name === user?.name)
+          }
           onToggle={handleToggle}
         />
       )}

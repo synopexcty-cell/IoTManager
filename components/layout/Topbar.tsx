@@ -2,6 +2,7 @@
 
 import { useAuth } from "@/components/providers/AuthProvider";
 import { getPageTitle } from "@/lib/nav";
+import { roleLabel } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
@@ -99,7 +100,7 @@ export function Topbar({ sidebarCollapsed }: TopbarProps) {
                   {user?.name}
                 </p>
                 <p className="text-xs text-neutral-500">
-                  {user?.role === "admin" ? "Quản trị" : "Nhân viên"}
+                  {roleLabel(user?.role)}
                 </p>
               </div>
               <button

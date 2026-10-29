@@ -1,6 +1,7 @@
 "use client";
 
 import { getNavItems } from "@/lib/nav";
+import type { Role } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight, Fingerprint } from "lucide-react";
 import Link from "next/link";
@@ -9,12 +10,12 @@ import { usePathname } from "next/navigation";
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
-  isAdmin: boolean;
+  role: Role;
 }
 
-export function Sidebar({ collapsed, onToggle, isAdmin }: SidebarProps) {
+export function Sidebar({ collapsed, onToggle, role }: SidebarProps) {
   const pathname = usePathname();
-  const items = getNavItems(isAdmin);
+  const items = getNavItems(role);
 
   return (
     <aside

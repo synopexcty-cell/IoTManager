@@ -1,4 +1,4 @@
-export type Role = "employee" | "admin";
+export type Role = "employee" | "admin" | "hr" | "accountant" | "viewer";
 
 export type AttendanceStatus = "checked_in" | "checked_out" | "absent";
 

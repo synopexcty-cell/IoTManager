@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useToast } from "@/components/ui/Toast";
-import { isAdminOnlyPath } from "@/lib/nav";
+import { isForbiddenPath } from "@/lib/nav";
 import { flushOfflineQueue, listEmployees } from "@/lib/sheets";
 import { cn } from "@/lib/utils";
 import { usePathname, useRouter } from "next/navigation";
@@ -41,7 +41,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       router.replace("/change-password");
       return;
     }
-    if (user.role !== "admin" && isAdminOnlyPath(pathname)) {
+    if (isForbiddenPath(pathname, user.role)) {
       router.replace("/dashboard");
     }
   }, [loading, user, router, pathname]);
@@ -77,15 +77,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const isAdmin = user.role === "admin";
-  const blockPage = !isAdmin && isAdminOnlyPath(pathname);
+  const blockPage = isForbiddenPath(pathname, user.role);
 
   return (
     <div className="min-h-screen bg-neutral-50">
       <Sidebar
         collapsed={collapsed}
         onToggle={toggleSidebar}
-        isAdmin={isAdmin}
+        role={user.role}
       />
       <Topbar sidebarCollapsed={collapsed} />
       <main
@@ -106,7 +105,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           )}
         </div>
       </main>
-      <BottomNav isAdmin={isAdmin} />
+      <BottomNav role={user.role} />
     </div>
   );
 }

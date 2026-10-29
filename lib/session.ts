@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "crypto";
+import { isKnownRole } from "./roles";
 import type { Role } from "./types";
 
 export type Session = {
@@ -38,11 +39,7 @@ export function verifySession(token: string | undefined | null): Session | null 
       Buffer.from(body, "base64url").toString("utf8")
     ) as Payload;
     if (!data.exp || data.exp < Math.floor(Date.now() / 1000)) return null;
-    if (
-      !data.employeeCode ||
-      !data.name ||
-      (data.role !== "admin" && data.role !== "employee")
-    ) {
+    if (!data.employeeCode || !data.name || !isKnownRole(data.role)) {
       return null;
     }
     return {

@@ -12,6 +12,7 @@ import {
   isOtWindowOpen,
   normalizeOtWindow,
 } from "./ot-window";
+import { canSeeAll, isViewOnly, parseRole } from "./roles";
 import { signSession, type Session } from "./session";
 import type {
   AppSettings,
@@ -93,8 +94,14 @@ function authPayload(emp: EmpDoc) {
 
 function canActAs(actor: Session | null, name: string) {
   if (!actor) return false;
+  if (isViewOnly(actor.role)) return false;
   if (actor.role === "admin") return true;
   return actor.name === name;
+}
+
+function scopedName(actor: Session | null, requested?: unknown): string {
+  if (actor && !canSeeAll(actor.role)) return actor.name;
+  return requested ? String(requested) : "";
 }
 
 /** Mongo handlers */
@@ -173,7 +180,7 @@ export async function mongoHandler<T>(
         return { ok: true, data: data as T };
       }
       case "listAttendance": {
-        const nameKey = payload.name ? String(payload.name) : "";
+        const nameKey = scopedName(actor, payload.name);
         const fromKey = payload.from ? String(payload.from) : "";
         const toKey = payload.to ? String(payload.to) : "";
         const cacheKey = `attendance:${nameKey}:${fromKey}:${toKey}`;
@@ -184,7 +191,7 @@ export async function mongoHandler<T>(
           employeeName?: string;
           date?: { $gte?: string; $lte?: string };
         } = {};
-        if (payload.name) filter.employeeName = String(payload.name);
+        if (nameKey) filter.employeeName = nameKey;
         if (payload.from || payload.to) {
           filter.date = {};
           if (payload.from) filter.date.$gte = String(payload.from);
@@ -359,7 +366,7 @@ export async function mongoHandler<T>(
       case "addEmployee": {
         const name = String(payload.name || "").trim();
         const pin = String(payload.pin || "").trim();
-        const role = (payload.role as Employee["role"]) || "employee";
+        const role = parseRole(payload.role);
         const employeeCode = normalizeEmployeeCode(
           String(payload.employeeCode || "")
         );
@@ -422,7 +429,7 @@ export async function mongoHandler<T>(
           const employeeCode = normalizeEmployeeCode(
             String(raw.employeeCode || "")
           );
-          const role = (raw.role as Employee["role"]) || "employee";
+          const role = parseRole(raw.role);
           if (!name || !employeeCode) {
             errors.push({ row: rowNo, message: "Thiếu họ tên hoặc mã NV" });
             skipped += 1;
@@ -446,7 +453,7 @@ export async function mongoHandler<T>(
           toInsert.push({
             name,
             pin,
-            role: role === "admin" ? "admin" : "employee",
+            role,
             active: true,
             employeeCode,
             phone: String(raw.phone || "").trim(),
@@ -477,7 +484,7 @@ export async function mongoHandler<T>(
         const originalName = String(payload.originalName || "").trim();
         const name = String(payload.name || "").trim();
         const pinRaw = String(payload.pin ?? "").trim();
-        const role = (payload.role as Employee["role"]) || "employee";
+        const role = parseRole(payload.role);
         const employeeCode = normalizeEmployeeCode(
           String(payload.employeeCode || "")
         );
@@ -554,7 +561,7 @@ export async function mongoHandler<T>(
         return { ok: true, data: publicEmployee(res, true) as T };
       }
       case "listOt": {
-        const nameKey = payload.name ? String(payload.name) : "";
+        const nameKey = scopedName(actor, payload.name);
         const fromKey = payload.from ? String(payload.from) : "";
         const toKey = payload.to ? String(payload.to) : "";
         const cacheKey = `ot:${nameKey}:${fromKey}:${toKey}`;
@@ -565,7 +572,7 @@ export async function mongoHandler<T>(
           employeeName?: string;
           date?: { $gte?: string; $lte?: string };
         } = {};
-        if (payload.name) filter.employeeName = String(payload.name);
+        if (nameKey) filter.employeeName = nameKey;
         if (payload.from || payload.to) {
           filter.date = {};
           if (payload.from) filter.date.$gte = String(payload.from);
@@ -629,7 +636,7 @@ export async function mongoHandler<T>(
         return { ok: true, data: record as T };
       }
       case "listMeals": {
-        const nameKey = payload.name ? String(payload.name) : "";
+        const nameKey = scopedName(actor, payload.name);
         const fromKey = payload.from ? String(payload.from) : "";
         const toKey = payload.to ? String(payload.to) : "";
         const cacheKey = `meals:${nameKey}:${fromKey}:${toKey}`;
@@ -640,7 +647,7 @@ export async function mongoHandler<T>(
           employeeName?: string;
           date?: { $gte?: string; $lte?: string };
         } = {};
-        if (payload.name) filter.employeeName = String(payload.name);
+        if (nameKey) filter.employeeName = nameKey;
         if (payload.from || payload.to) {
           filter.date = {};
           if (payload.from) filter.date.$gte = String(payload.from);

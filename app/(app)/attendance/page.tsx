@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
 import { CardSkeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
+import { isAdmin as isAdminRole, isViewer, workingStaff } from "@/lib/roles";
 import {
   checkIn,
   checkOut,
@@ -31,12 +32,14 @@ import {
   todayISO,
 } from "@/lib/utils";
 import { CalendarDays, LogIn, LogOut, Save } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 export default function AttendancePage() {
   const { user } = useAuth();
+  const router = useRouter();
   const { toast } = useToast();
-  const isAdmin = user?.role === "admin";
+  const isAdmin = isAdminRole(user?.role);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [targetName, setTargetName] = useState("");
   const [date, setDate] = useState(() => todayISO());
@@ -51,9 +54,15 @@ export default function AttendancePage() {
   const subjectName = isAdmin ? targetName : user?.name || "";
 
   useEffect(() => {
+    if (user && isViewer(user.role)) {
+      router.replace("/dashboard");
+    }
+  }, [user, router]);
+
+  useEffect(() => {
     if (!isAdmin || !user) return;
     listEmployees().then((list) => {
-      const active = list.filter((e) => e.active);
+      const active = workingStaff(list);
       setEmployees(active);
       setTargetName((prev) => prev || user.name);
     });
