@@ -33,7 +33,8 @@ import { roleLabel } from "@/lib/roles";
 import type { Employee, Role } from "@/lib/types";
 import { WORKPLACES, employeeCompany } from "@/lib/workplace";
 import { formatShortDate, isValidPin } from "@/lib/utils";
-import { FileSpreadsheet, Pencil, Trash2, UserPlus, Users } from "lucide-react";
+import { exportEmployeeListXlsx } from "@/lib/export-xlsx";
+import { Download, FileSpreadsheet, Pencil, Trash2, UserPlus, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -332,6 +333,19 @@ export default function EmployeesPage() {
               </option>
             ))}
           </select>
+          <Button
+            variant="outline"
+            onClick={() =>
+              void exportEmployeeListXlsx({
+                employees: visible,
+                filename: "nhan_vien.xlsx",
+              }).catch(() => toast("Không xuất được file Excel", "error"))
+            }
+            disabled={visible.length === 0}
+          >
+            <Download className="h-4 w-4" />
+            Xuất Excel
+          </Button>
           <Button variant="outline" onClick={downloadEmployeeTemplate}>
             <FileSpreadsheet className="h-4 w-4" />
             Tải mẫu Excel

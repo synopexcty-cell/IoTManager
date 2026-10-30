@@ -14,13 +14,14 @@ import {
 } from "./grid-cells";
 import { mealCount } from "./meal";
 import { formatOtDisplay } from "./ot";
+import { roleLabel } from "./roles";
 import type {
   AttendanceRecord,
   ColumnColors,
   Employee,
   MealRecord,
 } from "./types";
-import { daysInMonth, weekdayOf } from "./utils";
+import { daysInMonth, formatShortDate, weekdayOf } from "./utils";
 import { employeeCompany } from "./workplace";
 
 type Border = { style: "thin"; color: { rgb: string } };
@@ -127,7 +128,8 @@ async function writeSheet(
   merges: { s: { r: number; c: number }; e: { r: number; c: number } }[],
   colCount: number,
   filename: string,
-  sheetName: string
+  sheetName: string,
+  layout?: { cols?: number[]; rowHpt?: number }
 ) {
   const XLSX = await loadXlsx();
   const aoa: (string | number)[][] = rows.map((row) =>
@@ -150,6 +152,7 @@ async function writeSheet(
   });
   ws["!merges"] = merges;
   ws["!cols"] = Array.from({ length: colCount }, (_, i) => {
+    if (layout?.cols?.[i] != null) return { wch: layout.cols[i] };
     if (i === 0) return { wch: 5 };
     if (i === 1) return { wch: 10 };
     if (i === 2) return { wch: 12 };
@@ -158,7 +161,7 @@ async function writeSheet(
     return { wch: 6 };
   });
   ws["!rows"] = rows.map((_, r) => ({
-    hpt: r < 2 ? 22 : 28,
+    hpt: layout?.rowHpt ?? (r < 2 ? 22 : 28),
   }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
@@ -551,4 +554,69 @@ export async function exportMealGridXlsx(opts: {
   }
 
   await writeSheet(sheet, merges, colCount, opts.filename, "An ngoai");
+}
+
+/** Danh sách nhân viên — cùng cột với bảng /employees (không gồm cột Thao tác) */
+export async function exportEmployeeListXlsx(opts: {
+  employees: Employee[];
+  filename?: string;
+}) {
+  const headers = [
+    "Mã NV",
+    "Họ tên",
+    "Đơn vị",
+    "Giới tính",
+    "Ngày sinh",
+    "SĐT",
+    "CCCD",
+    "Vai trò",
+    "Trạng thái",
+  ];
+  const colCount = headers.length;
+  const title = `Nhân viên (${opts.employees.length})`;
+  const head = style({ bg: "#f5f5f5", bold: true });
+  const titleStyle = style({ bg: "#ffffff", bold: true, left: true, sz: 12 });
+  const left = style({ bg: "#ffffff", left: true });
+  const center = style({ bg: "#ffffff" });
+  const activeStyle = style({ bg: "#dcfce7", color: "#15803d", bold: true });
+  const lockedStyle = style({ bg: "#f5f5f5", color: "#737373" });
+
+  const dash = (v: string | undefined) => (v && v.trim() ? v : "—");
+
+  const headerRow = headers.map((h) => cell(h, head));
+  const body = opts.employees.map((emp) => {
+    const row: SheetCell[] = [
+      cell(dash(emp.employeeCode), center),
+      cell(emp.name, style({ bg: "#ffffff", bold: true, left: true })),
+      cell(dash(employeeCompany(emp)), center),
+      cell(dash(emp.gender), center),
+      cell(emp.birthDate ? formatShortDate(emp.birthDate) : "—", center),
+      cell(dash(emp.phone), center),
+      cell(dash(emp.cccd), center),
+      cell(roleLabel(emp.role), left),
+      cell(
+        emp.active ? "Hoạt động" : "Đã khóa",
+        emp.active ? activeStyle : lockedStyle
+      ),
+    ];
+    return row;
+  });
+
+  const sheet: SheetCell[][] = [
+    [cell(title, titleStyle), ...Array.from({ length: colCount - 1 }, () => cell("", titleStyle))],
+    headerRow,
+    ...body,
+  ];
+
+  await writeSheet(
+    sheet,
+    [{ s: { r: 0, c: 0 }, e: { r: 0, c: colCount - 1 } }],
+    colCount,
+    opts.filename || "nhan_vien.xlsx",
+    "Nhan vien",
+    {
+      cols: [12, 24, 12, 10, 12, 14, 16, 12, 12],
+      rowHpt: 20,
+    }
+  );
 }
