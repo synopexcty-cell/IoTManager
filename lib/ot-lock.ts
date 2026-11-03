@@ -1,20 +1,13 @@
-import type { AppSettings, OtMonthLock } from "./types";
+import type { AppSettings, OtDayLock } from "./types";
+import { formatShortDate } from "./utils";
 
-export function otMonthKey(year: number, month: number): string {
-  return `${year}-${String(month).padStart(2, "0")}`;
-}
-
-export function otMonthKeyFromDate(date: string): string {
-  return date.slice(0, 7);
-}
-
-export function normalizeOtMonthLocks(
+export function normalizeOtDayLocks(
   raw: unknown
-): Record<string, OtMonthLock> {
+): Record<string, OtDayLock> {
   if (!raw || typeof raw !== "object") return {};
-  const out: Record<string, OtMonthLock> = {};
+  const out: Record<string, OtDayLock> = {};
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-    if (!/^\d{4}-\d{2}$/.test(key)) continue;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) continue;
     if (!value || typeof value !== "object") continue;
     const v = value as Record<string, unknown>;
     const lockedAt = String(v.lockedAt || "").trim();
@@ -28,29 +21,20 @@ export function normalizeOtMonthLocks(
   return out;
 }
 
-export function getOtMonthLock(
-  settings: Pick<AppSettings, "otMonthLocks"> | null | undefined,
-  year: number,
-  month: number
-): OtMonthLock | null {
-  const key = otMonthKey(year, month);
-  return settings?.otMonthLocks?.[key] || null;
+/** Đọc cả khóa ngày mới và (legacy) khóa tháng cũ — không còn dùng month lock */
+export function getOtDayLock(
+  settings: Pick<AppSettings, "otDayLocks"> | null | undefined,
+  date: string
+): OtDayLock | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  return settings?.otDayLocks?.[date] || null;
 }
 
-export function isOtMonthLocked(
-  settings: Pick<AppSettings, "otMonthLocks"> | null | undefined,
-  year: number,
-  month: number
-): boolean {
-  return Boolean(getOtMonthLock(settings, year, month));
-}
-
-export function isOtDateLocked(
-  settings: Pick<AppSettings, "otMonthLocks"> | null | undefined,
+export function isOtDayLocked(
+  settings: Pick<AppSettings, "otDayLocks"> | null | undefined,
   date: string
 ): boolean {
-  const key = otMonthKeyFromDate(date);
-  return Boolean(settings?.otMonthLocks?.[key]);
+  return Boolean(getOtDayLock(settings, date));
 }
 
 export function formatOtLockTime(iso: string): string {
@@ -68,19 +52,16 @@ export function formatOtLockTime(iso: string): string {
   }
 }
 
-export function otMonthLockedMessage(
-  year: number,
-  month: number,
-  lock?: OtMonthLock | null
+/** Nhãn ngắn cho mọi user: đã chốt / chưa chốt ngày đó */
+export function otDayLockLabel(
+  date: string,
+  lock?: OtDayLock | null
 ): string {
-  const label = `tháng ${month}/${year}`;
-  if (!lock) return `Lịch OT ${label} đã chốt.`;
-  return `Lịch OT ${label} đã chốt bởi ${lock.lockedBy} lúc ${formatOtLockTime(lock.lockedAt)}.`;
+  const day = formatShortDate(date);
+  if (!lock) return `Ngày ${day}: chưa chốt`;
+  return `Ngày ${day}: ${lock.lockedBy} đã chốt lúc ${formatOtLockTime(lock.lockedAt)}`;
 }
 
-export function otMonthLockedEmployeeBlockMessage(
-  year: number,
-  month: number
-): string {
-  return `Lịch OT tháng ${month}/${year} đã chốt — không sửa được. Liên hệ quản trị nếu sai.`;
+export function otDayLockedEmployeeBlockMessage(date: string): string {
+  return `Lịch OT ngày ${formatShortDate(date)} đã chốt — không sửa được. Liên hệ quản trị nếu sai.`;
 }

@@ -9,13 +9,10 @@ import {
   CardTitle,
 } from "@/components/ui/Card";
 import { CardSkeleton } from "@/components/ui/Skeleton";
-import {
-  getOtMonthLock,
-  otMonthLockedMessage,
-} from "@/lib/ot-lock";
+import { getOtDayLock, otDayLockLabel } from "@/lib/ot-lock";
 import { isViewer, roleLabel, workingStaff } from "@/lib/roles";
 import { getSettings, listAttendance, listEmployees } from "@/lib/sheets";
-import type { AttendanceRecord, OtMonthLock } from "@/lib/types";
+import type { AttendanceRecord, OtDayLock } from "@/lib/types";
 import { formatShortDate, statusLabel, todayISO } from "@/lib/utils";
 import { Clock, Eye, History, LogIn, LogOut, Timer, Utensils } from "lucide-react";
 import Link from "next/link";
@@ -28,18 +25,14 @@ export default function DashboardPage() {
   const [recent, setRecent] = useState<AttendanceRecord[]>([]);
   const [presentCount, setPresentCount] = useState(0);
   const [staffCount, setStaffCount] = useState(0);
-  const [otLock, setOtLock] = useState<OtMonthLock | null>(null);
-  const [otYear, setOtYear] = useState(() => Number(todayISO().slice(0, 4)));
-  const [otMonth, setOtMonth] = useState(() => Number(todayISO().slice(5, 7)));
+  const [todayDate, setTodayDate] = useState(() => todayISO());
+  const [otLock, setOtLock] = useState<OtDayLock | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
     const date = todayISO();
-    const y = Number(date.slice(0, 4));
-    const m = Number(date.slice(5, 7));
-    setOtYear(y);
-    setOtMonth(m);
+    setTodayDate(date);
     if (viewer) {
       Promise.all([
         listEmployees(),
@@ -57,7 +50,7 @@ export default function DashboardPage() {
           setStaffCount(staff.length);
           setPresentCount(present.size);
           setRecent(todayRecords.slice(0, 8));
-          setOtLock(getOtMonthLock(settings, y, m));
+          setOtLock(getOtDayLock(settings, date));
         })
         .finally(() => setLoading(false));
       return;
@@ -70,10 +63,36 @@ export default function DashboardPage() {
       .then(([todayRecords, all, settings]) => {
         setToday(todayRecords[0] ?? null);
         setRecent(all.slice(0, 5));
-        setOtLock(getOtMonthLock(settings, y, m));
+        setOtLock(getOtDayLock(settings, date));
       })
       .finally(() => setLoading(false));
   }, [user, viewer]);
+
+  const otStatusCard = (
+    <Card
+      className={`border-l-4 ${otLock ? "border-l-sky-500" : "border-l-amber-400"}`}
+    >
+      <CardHeader>
+        <CardDescription>Lịch OT hôm nay</CardDescription>
+        <CardTitle className="text-base">
+          {otDayLockLabel(todayDate, otLock)}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <Link
+          href="/ot"
+          className={`inline-flex h-11 min-h-[44px] items-center justify-center gap-2 rounded-lg px-4 text-sm font-medium text-white ${
+            otLock
+              ? "bg-sky-600 hover:bg-sky-700"
+              : "bg-amber-600 hover:bg-amber-700"
+          }`}
+        >
+          <Timer className="h-4 w-4" />
+          Xem lịch OT
+        </Link>
+      </CardContent>
+    </Card>
+  );
 
   if (loading) {
     return (
@@ -143,25 +162,7 @@ export default function DashboardPage() {
               </Link>
             </CardContent>
           </Card>
-          {otLock ? (
-            <Card className="border-l-4 border-l-sky-500 sm:col-span-2 lg:col-span-3">
-              <CardHeader>
-                <CardDescription>Lịch OT tháng {otMonth}/{otYear}</CardDescription>
-                <CardTitle className="text-base">
-                  {otMonthLockedMessage(otYear, otMonth, otLock)}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <Link
-                  href="/ot"
-                  className="inline-flex h-11 min-h-[44px] items-center justify-center gap-2 rounded-lg bg-sky-600 px-4 text-sm font-medium text-white hover:bg-sky-700"
-                >
-                  <Timer className="h-4 w-4" />
-                  Mở Lịch OT / xuất Excel báo CNV
-                </Link>
-              </CardContent>
-            </Card>
-          ) : null}
+          <div className="sm:col-span-2 lg:col-span-3">{otStatusCard}</div>
         </div>
         {recent.length > 0 && (
           <Card>
@@ -208,29 +209,7 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {otLock ? (
-        <Card className="border-l-4 border-l-sky-500">
-          <CardHeader>
-            <CardDescription>Thông báo OT</CardDescription>
-            <CardTitle className="text-base">
-              Lịch OT tháng {otMonth}/{otYear} đã chốt
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 pt-0">
-            <p className="text-sm text-neutral-600">
-              {otMonthLockedMessage(otYear, otMonth, otLock)} Xem lịch của bạn
-              trên trang Lịch OT.
-            </p>
-            <Link
-              href="/ot"
-              className="inline-flex h-11 min-h-[44px] items-center justify-center gap-2 rounded-lg bg-sky-600 px-4 text-sm font-medium text-white hover:bg-sky-700"
-            >
-              <Timer className="h-4 w-4" />
-              Xem lịch OT
-            </Link>
-          </CardContent>
-        </Card>
-      ) : null}
+      {otStatusCard}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card className="border-l-4 border-l-primary">

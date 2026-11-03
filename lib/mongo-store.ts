@@ -8,10 +8,9 @@ import { getDb } from "./mongodb";
 import { parseMealRecord } from "./meal";
 import { parseOtValue } from "./ot";
 import {
-  isOtDateLocked,
-  normalizeOtMonthLocks,
-  otMonthKeyFromDate,
-  otMonthLockedEmployeeBlockMessage,
+  isOtDayLocked,
+  normalizeOtDayLocks,
+  otDayLockedEmployeeBlockMessage,
 } from "./ot-lock";
 import {
   employeeOtBlockedMessage,
@@ -49,7 +48,7 @@ type SettingsDoc = {
   columnColors?: unknown;
   monthColors?: unknown;
   otWindow?: unknown;
-  otMonthLocks?: unknown;
+  otDayLocks?: unknown;
 };
 
 const EMP_TTL = 30_000;
@@ -652,15 +651,14 @@ export async function mongoHandler<T>(
                 : DEFAULT_COLUMN_COLORS,
               monthColors: normalizeMonthColors(doc?.monthColors),
               otWindow: normalizeOtWindow(doc?.otWindow),
-              otMonthLocks: normalizeOtMonthLocks(doc?.otMonthLocks),
+              otDayLocks: normalizeOtDayLocks(doc?.otDayLocks),
             };
             cacheSet(SETTINGS_CACHE, appSettings, SETTINGS_TTL);
           }
-          if (isOtDateLocked(appSettings, date)) {
-            const [y, m] = otMonthKeyFromDate(date).split("-").map(Number);
+          if (isOtDayLocked(appSettings, date)) {
             return {
               ok: false,
-              error: otMonthLockedEmployeeBlockMessage(y, m),
+              error: otDayLockedEmployeeBlockMessage(date),
             };
           }
           if (!isOtWindowOpen(appSettings.otWindow)) {
@@ -778,7 +776,7 @@ export async function mongoHandler<T>(
             : DEFAULT_COLUMN_COLORS,
           monthColors: normalizeMonthColors(doc?.monthColors),
           otWindow: normalizeOtWindow(doc?.otWindow),
-          otMonthLocks: normalizeOtMonthLocks(doc?.otMonthLocks),
+          otDayLocks: normalizeOtDayLocks(doc?.otDayLocks),
         };
         cacheSet(SETTINGS_CACHE, data, SETTINGS_TTL);
         return { ok: true, data: data as T };
@@ -793,7 +791,7 @@ export async function mongoHandler<T>(
           : DEFAULT_COLUMN_COLORS;
         const monthColors = normalizeMonthColors(doc?.monthColors);
         let otWindow = normalizeOtWindow(doc?.otWindow);
-        const otMonthLocks = normalizeOtMonthLocks(doc?.otMonthLocks);
+        const otDayLocks = normalizeOtDayLocks(doc?.otDayLocks);
         const monthKey = String(payload.monthKey || "").trim();
         if (monthKey) {
           if (!/^\d{4}-\d{2}$/.test(monthKey)) {
@@ -817,38 +815,38 @@ export async function mongoHandler<T>(
             otWindow = next;
           }
         }
-        if (payload.otMonthLock && typeof payload.otMonthLock === "object") {
-          const lockReq = payload.otMonthLock as {
-            month?: unknown;
+        if (payload.otDayLock && typeof payload.otDayLock === "object") {
+          const lockReq = payload.otDayLock as {
+            date?: unknown;
             lock?: unknown;
             note?: unknown;
           };
-          const lockMonth = String(lockReq.month || "").trim();
-          if (!/^\d{4}-\d{2}$/.test(lockMonth)) {
-            return { ok: false, error: "Tháng chốt OT không hợp lệ" };
+          const lockDate = String(lockReq.date || "").trim();
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(lockDate)) {
+            return { ok: false, error: "Ngày chốt OT không hợp lệ" };
           }
           const doLock = lockReq.lock === true || lockReq.lock === "true";
           if (doLock) {
             const note = String(lockReq.note || "").trim();
-            otMonthLocks[lockMonth] = {
+            otDayLocks[lockDate] = {
               lockedAt: new Date().toISOString(),
               lockedBy: actor.name,
               ...(note ? { note } : {}),
             };
           } else {
-            delete otMonthLocks[lockMonth];
+            delete otDayLocks[lockDate];
           }
         }
         await settings.updateOne(
           { _id: SETTINGS_ID },
-          { $set: { columnColors, monthColors, otWindow, otMonthLocks } },
+          { $set: { columnColors, monthColors, otWindow, otDayLocks } },
           { upsert: true }
         );
         const data: AppSettings = {
           columnColors,
           monthColors,
           otWindow,
-          otMonthLocks,
+          otDayLocks,
         };
         cacheInvalidate(SETTINGS_CACHE);
         cacheSet(SETTINGS_CACHE, data, SETTINGS_TTL);

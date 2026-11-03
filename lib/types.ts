@@ -79,8 +79,8 @@ export interface OtWindow {
   to: string;
 }
 
-/** Bản ghi chốt lịch OT theo tháng (yyyy-MM) */
-export interface OtMonthLock {
+/** Bản ghi chốt lịch OT theo ngày (yyyy-MM-dd) */
+export interface OtDayLock {
   lockedAt: string;
   lockedBy: string;
   note?: string;
@@ -93,8 +93,8 @@ export interface AppSettings {
   monthColors?: Record<string, ColumnColors>;
   /** null = đóng, nhân viên không đăng ký được */
   otWindow?: OtWindow | null;
-  /** key = yyyy-MM — lịch OT đã chốt */
-  otMonthLocks?: Record<string, OtMonthLock>;
+  /** key = yyyy-MM-dd — lịch OT đã chốt từng ngày */
+  otDayLocks?: Record<string, OtDayLock>;
 }
 
 export type SheetsAction =

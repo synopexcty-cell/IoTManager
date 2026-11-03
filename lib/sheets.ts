@@ -23,7 +23,7 @@ import {
   clientCacheSetSettings,
 } from "./client-cache";
 import { DEFAULT_COLUMN_COLORS } from "./column-colors";
-import { normalizeOtMonthLocks } from "./ot-lock";
+import { normalizeOtDayLocks } from "./ot-lock";
 import { normalizeOtWindow } from "./ot-window";
 import { enqueue, getQueue, setQueue } from "./offline-queue";
 import type {
@@ -436,13 +436,13 @@ export async function getSettings(options?: {
           columnColors: res.data.columnColors || DEFAULT_COLUMN_COLORS,
           monthColors: res.data.monthColors || {},
           otWindow: normalizeOtWindow(res.data.otWindow),
-          otMonthLocks: normalizeOtMonthLocks(res.data.otMonthLocks),
+          otDayLocks: normalizeOtDayLocks(res.data.otDayLocks),
         }
       : {
           columnColors: DEFAULT_COLUMN_COLORS,
           monthColors: {},
           otWindow: null,
-          otMonthLocks: {},
+          otDayLocks: {},
         };
   if (res.ok) clientCacheSetSettings(data);
   return data;
@@ -452,7 +452,7 @@ export async function updateSettings(payload: {
   columnColors?: AppSettings["columnColors"];
   monthKey?: string;
   otWindow?: AppSettings["otWindow"];
-  otMonthLock?: { month: string; lock: boolean; note?: string };
+  otDayLock?: { date: string; lock: boolean; note?: string };
 }) {
   const res = await callSheets<AppSettings>({
     action: "updateSettings",
