@@ -13,7 +13,6 @@ import {
   type GridCellValue,
 } from "./grid-cells";
 import { mealCount } from "./meal";
-import { formatOtDisplay } from "./ot";
 import { roleLabel } from "./roles";
 import type {
   AttendanceRecord,
@@ -229,7 +228,6 @@ export async function exportMonthGridXlsx(opts: {
         : attendanceCellValue(byEmpDate.get(key));
     });
     const sites = days.map((day) => {
-      if (useEntries) return "";
       const date = `${opts.year}-${mm}-${String(day).padStart(2, "0")}`;
       return recordWorkplace(byEmpDate.get(`${emp.name}|${date}`));
     });
@@ -294,15 +292,12 @@ export async function exportMonthGridXlsx(opts: {
       const day = i + 1;
       const leave = isLeaveCell(value);
       const s = dayStyle(colors, opts.year, opts.month, day, { leave });
-      const text = useEntries
-        ? formatOtDisplay(value)
-        : attendanceCellText(value, row.sites[i]);
-      if (!useEntries && typeof value === "number" && !row.sites[i]) {
-        line.push(cell(value, s));
-      } else if (useEntries && typeof value === "number") {
+      if (value === undefined) {
+        line.push(cell("", s));
+      } else if (typeof value === "number" && !row.sites[i]) {
         line.push(cell(value, s));
       } else {
-        line.push(cell(text || undefined, s));
+        line.push(cell(attendanceCellText(value, row.sites[i]) || undefined, s));
       }
     });
     line.push(

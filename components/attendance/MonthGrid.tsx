@@ -278,7 +278,8 @@ export function MonthGrid({
                   const day = i + 1;
                   const date = `${year}-${mm}-${String(day).padStart(2, "0")}`;
                   const rec = byEmpDate.get(`${emp.name}|${date}`);
-                  const site = useEntries ? "" : recordWorkplace(rec);
+                  /** Nơi làm trong ngày (từ chấm công) — dùng cho cả bảng công và OT */
+                  const site = recordWorkplace(rec);
                   const leave = isLeaveCell(value);
                   const bg = leave
                     ? "#000000"
@@ -427,11 +428,9 @@ export function MonthGrid({
             <span className="font-bold text-red-600">/</span> {"-->"} Nghỉ
           </p>
           <p className="mt-1 text-neutral-600">{noteHours}</p>
-          {!useEntries && (
-            <p className="mt-1 text-neutral-600">
-              SF = SIFLEX, SX = SYNOPEX (nơi làm trong ngày)
-            </p>
-          )}
+          <p className="mt-1 text-neutral-600">
+            SF = SIFLEX, SX = SYNOPEX (nơi làm trong ngày, theo chấm công)
+          </p>
         </div>
       )}
     </div>

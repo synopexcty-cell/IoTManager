@@ -17,10 +17,26 @@ import {
   normalizeOtWindow,
 } from "@/lib/ot-window";
 import { canSeeAll, isAdmin as isAdminRole, isViewer, workingStaff } from "@/lib/roles";
-import { getSettings, listEmployees, listOt, saveOt } from "@/lib/sheets";
-import type { ColumnColors, Employee, OtRecord, OtWindow } from "@/lib/types";
+import {
+  getSettings,
+  listAttendance,
+  listEmployees,
+  listOt,
+  saveOt,
+} from "@/lib/sheets";
+import type {
+  AttendanceRecord,
+  ColumnColors,
+  Employee,
+  OtRecord,
+  OtWindow,
+} from "@/lib/types";
 import { monthRange, todayISO } from "@/lib/utils";
-import { WORKPLACES, matchesCompany } from "@/lib/workplace";
+import {
+  WORKPLACES,
+  matchesCompany,
+  parseWorkplace,
+} from "@/lib/workplace";
 import { ChevronLeft, ChevronRight, Download, Inbox } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -35,6 +51,7 @@ export default function OtPage() {
   const [month, setMonth] = useState(() => Number(today.slice(5, 7)));
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [records, setRecords] = useState<OtRecord[]>([]);
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [columnColors, setColumnColors] = useState<ColumnColors>(
     DEFAULT_COLUMN_COLORS
   );
@@ -42,6 +59,7 @@ export default function OtPage() {
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [loading, setLoading] = useState(true);
   const [company, setCompany] = useState("");
+  const [site, setSite] = useState("");
 
   const { from, to } = useMemo(() => monthRange(year, month), [year, month]);
 
@@ -55,16 +73,11 @@ export default function OtPage() {
     if (!user) return;
     setLoading(true);
     try {
-      const [emps, ot, settings] = await Promise.all([
+      const nameFilter = seeAll ? undefined : user.name;
+      const [emps, ot, att, settings] = await Promise.all([
         listEmployees(),
-        listOt(
-          {
-            from,
-            to,
-            name: seeAll ? undefined : user.name,
-          },
-          { force: true }
-        ),
+        listOt({ from, to, name: nameFilter }, { force: true }),
+        listAttendance({ from, to, name: nameFilter }),
         getSettings({ force: true }),
       ]);
       const list = seeAll
@@ -72,6 +85,7 @@ export default function OtPage() {
         : emps.filter((e) => e.name === user.name);
       setEmployees(list);
       setRecords(ot);
+      setAttendance(att);
       setColumnColors(colorsForMonth(settings, year, month));
       setOtWindow(normalizeOtWindow(settings.otWindow));
     } finally {
@@ -91,20 +105,42 @@ export default function OtPage() {
   const otOpen = isOtWindowOpen(otWindow, nowTick);
   const canEmployeeEdit = otOpen;
 
-  const visibleEmployees = useMemo(
-    () => employees.filter((e) => matchesCompany(e, company)),
-    [employees, company]
-  );
+  const visibleEmployees = useMemo(() => {
+    const byCompany = employees.filter((e) => matchesCompany(e, company));
+    if (!site) return byCompany;
+    const names = new Set(
+      attendance
+        .filter((r) => parseWorkplace(r.workplace) === site)
+        .map((r) => r.employeeName)
+    );
+    return byCompany.filter((e) => names.has(e.name));
+  }, [employees, attendance, company, site]);
   const visibleNames = useMemo(
     () => new Set(visibleEmployees.map((e) => e.name)),
     [visibleEmployees]
   );
   const visibleRecords = useMemo(
     () =>
-      company
-        ? records.filter((r) => visibleNames.has(r.employeeName))
-        : records,
-    [records, company, visibleNames]
+      records.filter((r) => {
+        if (!visibleNames.has(r.employeeName)) return false;
+        if (!site) return true;
+        const daySite = parseWorkplace(
+          attendance.find(
+            (a) => a.employeeName === r.employeeName && a.date === r.date
+          )?.workplace
+        );
+        return daySite === site;
+      }),
+    [records, attendance, visibleNames, site]
+  );
+  const visibleAttendance = useMemo(
+    () =>
+      attendance.filter((r) => {
+        if (!visibleNames.has(r.employeeName)) return false;
+        if (site && parseWorkplace(r.workplace) !== site) return false;
+        return true;
+      }),
+    [attendance, visibleNames, site]
   );
 
   const handleCommit = async (employeeName: string, date: string, raw: string) => {
@@ -148,6 +184,7 @@ export default function OtPage() {
       month,
       employees: visibleEmployees,
       entries: visibleRecords,
+      records: visibleAttendance,
       columnColors,
       title: `Lịch OT — Tháng ${month}/${year}`,
       hoursLabel: "Giờ OT",
@@ -157,6 +194,7 @@ export default function OtPage() {
         "P --> Nghỉ phép",
         "/ --> Nghỉ",
         "Số = số giờ OT",
+        "SF = SIFLEX, SX = SYNOPEX (nơi làm trong ngày, theo chấm công)",
       ],
       filename: `ot_${year}-${String(month).padStart(2, "0")}.xlsx`,
       sheetName: "OT",
@@ -201,19 +239,34 @@ export default function OtPage() {
               <ChevronRight className="h-4 w-4" />
             </Button>
             {seeAll && (
-              <select
-                aria-label="Đơn vị"
-                value={company}
-                onChange={(e) => setCompany(e.target.value)}
-                className="h-11 min-h-[44px] rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-              >
-                <option value="">Tất cả đơn vị</option>
-                {WORKPLACES.map((w) => (
-                  <option key={w} value={w}>
-                    {w}
-                  </option>
-                ))}
-              </select>
+              <>
+                <select
+                  aria-label="Đơn vị"
+                  value={company}
+                  onChange={(e) => setCompany(e.target.value)}
+                  className="h-11 min-h-[44px] rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                >
+                  <option value="">Tất cả đơn vị</option>
+                  {WORKPLACES.map((w) => (
+                    <option key={w} value={w}>
+                      {w}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  aria-label="Nơi làm việc"
+                  value={site}
+                  onChange={(e) => setSite(e.target.value)}
+                  className="h-11 min-h-[44px] rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                >
+                  <option value="">Tất cả nơi làm</option>
+                  {WORKPLACES.map((w) => (
+                    <option key={w} value={w}>
+                      {w}
+                    </option>
+                  ))}
+                </select>
+              </>
             )}
           </div>
           {seeAll && (
@@ -266,6 +319,7 @@ export default function OtPage() {
           month={month}
           employees={visibleEmployees}
           entries={visibleRecords}
+          records={visibleAttendance}
           columnColors={columnColors}
           title={`Lịch OT — Tháng ${month}/${year}`}
           hoursLabel="Giờ OT"
