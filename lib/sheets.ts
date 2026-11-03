@@ -250,6 +250,7 @@ export async function saveOt(payload: {
   name: string;
   date: string;
   value: string;
+  workplace?: string;
 }) {
   const res = await callSheets<OtRecord>(
     { action: "saveOt", payload },

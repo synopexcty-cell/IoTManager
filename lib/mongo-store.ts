@@ -653,10 +653,22 @@ export async function mongoHandler<T>(
           return { ok: true, data: { employeeName: name, date, value: "" } as T };
         }
 
+        const existingOt = await overtime.findOne({ employeeName: name, date });
+        const workplace =
+          parseWorkplace(payload.workplace) ||
+          parseWorkplace(existingOt?.workplace);
+        if (!workplace) {
+          return {
+            ok: false,
+            error: "Chọn nơi OT (SIFLEX hoặc SYNOPEX) — có thể khác nơi làm ban ngày",
+          };
+        }
+
         const record: OtRecord = {
           employeeName: name,
           date,
           value,
+          workplace,
           updatedAt: new Date().toISOString(),
         };
         await overtime.updateOne(

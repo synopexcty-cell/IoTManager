@@ -21,7 +21,7 @@ import type {
   MealRecord,
 } from "./types";
 import { daysInMonth, formatShortDate, weekdayOf } from "./utils";
-import { employeeCompany } from "./workplace";
+import { employeeCompany, parseWorkplace } from "./workplace";
 
 type Border = { style: "thin"; color: { rgb: string } };
 type CellStyle = {
@@ -191,7 +191,12 @@ export async function exportMonthGridXlsx(opts: {
   month: number;
   employees: Employee[];
   records?: AttendanceRecord[];
-  entries?: { employeeName: string; date: string; value: string }[];
+  entries?: {
+    employeeName: string;
+    date: string;
+    value: string;
+    workplace?: string;
+  }[];
   columnColors?: ColumnColors;
   title: string;
   hoursLabel?: string;
@@ -215,8 +220,12 @@ export async function exportMonthGridXlsx(opts: {
     byEmpDate.set(`${r.employeeName}|${r.date}`, r);
   }
   const byEntry = new Map<string, string>();
+  const byEntrySite = new Map<string, string>();
   for (const e of opts.entries || []) {
-    byEntry.set(`${e.employeeName}|${e.date}`, e.value);
+    const key = `${e.employeeName}|${e.date}`;
+    byEntry.set(key, e.value);
+    const w = parseWorkplace(e.workplace);
+    if (w) byEntrySite.set(key, w);
   }
 
   const empRows = opts.employees.map((emp) => {
@@ -229,7 +238,11 @@ export async function exportMonthGridXlsx(opts: {
     });
     const sites = days.map((day) => {
       const date = `${opts.year}-${mm}-${String(day).padStart(2, "0")}`;
-      return recordWorkplace(byEmpDate.get(`${emp.name}|${date}`));
+      const key = `${emp.name}|${date}`;
+      if (useEntries) {
+        return byEntrySite.get(key) || recordWorkplace(byEmpDate.get(key));
+      }
+      return recordWorkplace(byEmpDate.get(key));
     });
     const total = cells.reduce<number>(
       (sum, v) => (typeof v === "number" ? sum + v : sum),

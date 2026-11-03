@@ -34,11 +34,26 @@ import type {
 import { monthRange, todayISO } from "@/lib/utils";
 import {
   WORKPLACES,
+  employeeCompany,
   matchesCompany,
   parseWorkplace,
 } from "@/lib/workplace";
 import { ChevronLeft, ChevronRight, Download, Inbox } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+
+function otSiteOf(
+  ot: OtRecord | undefined,
+  attendance: AttendanceRecord[]
+): string {
+  const fromOt = parseWorkplace(ot?.workplace);
+  if (fromOt) return fromOt;
+  if (!ot) return "";
+  return parseWorkplace(
+    attendance.find(
+      (a) => a.employeeName === ot.employeeName && a.date === ot.date
+    )?.workplace
+  );
+}
 
 export default function OtPage() {
   const { user } = useAuth();
@@ -60,6 +75,8 @@ export default function OtPage() {
   const [loading, setLoading] = useState(true);
   const [company, setCompany] = useState("");
   const [site, setSite] = useState("");
+  /** Nơi OT khi đăng ký / sửa ô — có thể khác nơi làm ban ngày */
+  const [otWorkplace, setOtWorkplace] = useState("");
 
   const { from, to } = useMemo(() => monthRange(year, month), [year, month]);
 
@@ -102,6 +119,13 @@ export default function OtPage() {
     return () => clearInterval(t);
   }, []);
 
+  useEffect(() => {
+    if (otWorkplace || !user) return;
+    const self = employees.find((e) => e.name === user.name);
+    const fallback = employeeCompany(self || {});
+    if (fallback) setOtWorkplace(fallback);
+  }, [otWorkplace, employees, user]);
+
   const otOpen = isOtWindowOpen(otWindow, nowTick);
   const canEmployeeEdit = otOpen;
 
@@ -109,12 +133,12 @@ export default function OtPage() {
     const byCompany = employees.filter((e) => matchesCompany(e, company));
     if (!site) return byCompany;
     const names = new Set(
-      attendance
-        .filter((r) => parseWorkplace(r.workplace) === site)
+      records
+        .filter((r) => otSiteOf(r, attendance) === site)
         .map((r) => r.employeeName)
     );
     return byCompany.filter((e) => names.has(e.name));
-  }, [employees, attendance, company, site]);
+  }, [employees, records, attendance, company, site]);
   const visibleNames = useMemo(
     () => new Set(visibleEmployees.map((e) => e.name)),
     [visibleEmployees]
@@ -124,23 +148,13 @@ export default function OtPage() {
       records.filter((r) => {
         if (!visibleNames.has(r.employeeName)) return false;
         if (!site) return true;
-        const daySite = parseWorkplace(
-          attendance.find(
-            (a) => a.employeeName === r.employeeName && a.date === r.date
-          )?.workplace
-        );
-        return daySite === site;
+        return otSiteOf(r, attendance) === site;
       }),
     [records, attendance, visibleNames, site]
   );
   const visibleAttendance = useMemo(
-    () =>
-      attendance.filter((r) => {
-        if (!visibleNames.has(r.employeeName)) return false;
-        if (site && parseWorkplace(r.workplace) !== site) return false;
-        return true;
-      }),
-    [attendance, visibleNames, site]
+    () => attendance.filter((r) => visibleNames.has(r.employeeName)),
+    [attendance, visibleNames]
   );
 
   const handleCommit = async (employeeName: string, date: string, raw: string) => {
@@ -157,13 +171,36 @@ export default function OtPage() {
       toast(employeeOtBlockedMessage(otWindow), "error");
       throw new Error("closed");
     }
-    const res = await saveOt({ name: employeeName, date, value: parsed });
+    const prev = records.find(
+      (r) => r.employeeName === employeeName && r.date === date
+    );
+    const workplace =
+      parseWorkplace(otWorkplace) ||
+      parseWorkplace(prev?.workplace) ||
+      parseWorkplace(
+        attendance.find(
+          (a) => a.employeeName === employeeName && a.date === date
+        )?.workplace
+      );
+    if (parsed && !workplace) {
+      toast(
+        "Chọn nơi OT (SIFLEX hoặc SYNOPEX). Có thể OT ở chỗ khác nơi làm ban ngày.",
+        "error"
+      );
+      throw new Error("workplace");
+    }
+    const res = await saveOt({
+      name: employeeName,
+      date,
+      value: parsed,
+      workplace: parsed ? workplace : undefined,
+    });
     if (!res.ok) {
       toast(res.error || "Không lưu được OT", "error");
       throw new Error(res.error || "save");
     }
-    setRecords((prev) => {
-      const next = prev.filter(
+    setRecords((prevList) => {
+      const next = prevList.filter(
         (r) => !(r.employeeName === employeeName && r.date === date)
       );
       if (parsed) {
@@ -171,6 +208,7 @@ export default function OtPage() {
           employeeName,
           date,
           value: parsed,
+          workplace,
           updatedAt: new Date().toISOString(),
         });
       }
@@ -194,7 +232,7 @@ export default function OtPage() {
         "P --> Nghỉ phép",
         "/ --> Nghỉ",
         "Số = số giờ OT",
-        "SF = SIFLEX, SX = SYNOPEX (nơi làm trong ngày, theo chấm công)",
+        "SF = SIFLEX, SX = SYNOPEX (nơi OT — có thể khác nơi làm ban ngày)",
       ],
       filename: `ot_${year}-${String(month).padStart(2, "0")}.xlsx`,
       sheetName: "OT",
@@ -205,7 +243,7 @@ export default function OtPage() {
     <div className="space-y-4">
       <Card>
         <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:flex-wrap sm:items-center">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => shiftMonth(-1)} aria-label="Tháng trước">
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -254,12 +292,12 @@ export default function OtPage() {
                   ))}
                 </select>
                 <select
-                  aria-label="Nơi làm việc"
+                  aria-label="Lọc nơi OT"
                   value={site}
                   onChange={(e) => setSite(e.target.value)}
                   className="h-11 min-h-[44px] rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                 >
-                  <option value="">Tất cả nơi làm</option>
+                  <option value="">Tất cả nơi OT</option>
                   {WORKPLACES.map((w) => (
                     <option key={w} value={w}>
                       {w}
@@ -267,6 +305,21 @@ export default function OtPage() {
                   ))}
                 </select>
               </>
+            )}
+            {!viewer && (
+              <select
+                aria-label="Nơi OT khi đăng ký"
+                value={otWorkplace}
+                onChange={(e) => setOtWorkplace(e.target.value)}
+                className="h-11 min-h-[44px] rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                <option value="">— Nơi OT khi đăng ký —</option>
+                {WORKPLACES.map((w) => (
+                  <option key={w} value={w}>
+                    OT tại {w}
+                  </option>
+                ))}
+              </select>
             )}
           </div>
           {seeAll && (
@@ -303,6 +356,12 @@ export default function OtPage() {
             : otOpen && otWindow
               ? `Đang mở đăng ký OT đến ${formatOtLocal(otWindow.to)}.`
               : employeeOtBlockedMessage(otWindow, nowTick)}
+        {!viewer && (
+          <span className="mt-1 block text-neutral-600">
+            Nơi OT chọn riêng (ví dụ làm ngày tại SIFLEX, về SYNOPEX OT) — không
+            phụ thuộc nơi chấm công ban ngày.
+          </span>
+        )}
       </div>
 
       {loading ? (
@@ -328,7 +387,7 @@ export default function OtPage() {
             viewer
               ? "Tài khoản chỉ xem."
               : isAdmin || canEmployeeEdit
-                ? "Số = số giờ OT. Bấm vào ô để đăng ký (P = phép, / = nghỉ, xóa ô = bỏ)."
+                ? "Số = số giờ OT. Chọn «Nơi OT khi đăng ký» rồi bấm ô để lưu (P = phép, / = nghỉ, xóa ô = bỏ)."
                 : "Chỉ xem — ngoài thời gian đăng ký OT."
           }
           editable={!viewer && (isAdmin || canEmployeeEdit)}

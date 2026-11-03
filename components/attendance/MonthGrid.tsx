@@ -15,7 +15,11 @@ import {
 } from "@/lib/grid-cells";
 import { formatOtDisplay } from "@/lib/ot";
 import type { AttendanceRecord, ColumnColors, Employee } from "@/lib/types";
-import { employeeCompany, workplaceShort } from "@/lib/workplace";
+import {
+  employeeCompany,
+  parseWorkplace,
+  workplaceShort,
+} from "@/lib/workplace";
 import { freezeCol } from "@/lib/freeze-cols";
 import { todayCol, todayDayOf } from "@/lib/today-column";
 import { cn, daysInMonth, weekdayOf } from "@/lib/utils";
@@ -47,8 +51,13 @@ export function MonthGrid({
   month: number;
   employees: Employee[];
   records?: AttendanceRecord[];
-  /** Đăng ký OT: employeeName|date → value */
-  entries?: { employeeName: string; date: string; value: string }[];
+  /** Đăng ký OT: employeeName|date → value (+ workplace nơi OT) */
+  entries?: {
+    employeeName: string;
+    date: string;
+    value: string;
+    workplace?: string;
+  }[];
   columnColors?: ColumnColors;
   title?: string;
   hoursLabel?: string;
@@ -74,8 +83,12 @@ export function MonthGrid({
     byEmpDate.set(`${r.employeeName}|${r.date}`, r);
   }
   const byEntry = new Map<string, string>();
+  const byEntrySite = new Map<string, string>();
   for (const e of entries || []) {
-    byEntry.set(`${e.employeeName}|${e.date}`, e.value);
+    const key = `${e.employeeName}|${e.date}`;
+    byEntry.set(key, e.value);
+    const w = parseWorkplace(e.workplace);
+    if (w) byEntrySite.set(key, w);
   }
   const useEntries = Boolean(entries);
 
@@ -277,9 +290,12 @@ export function MonthGrid({
                 {cells.map((value, i) => {
                   const day = i + 1;
                   const date = `${year}-${mm}-${String(day).padStart(2, "0")}`;
-                  const rec = byEmpDate.get(`${emp.name}|${date}`);
-                  /** Nơi làm trong ngày (từ chấm công) — dùng cho cả bảng công và OT */
-                  const site = recordWorkplace(rec);
+                  const key = `${emp.name}|${date}`;
+                  const rec = byEmpDate.get(key);
+                  /** OT: nơi OT riêng; bảng công: nơi làm trong ngày */
+                  const site = useEntries
+                    ? byEntrySite.get(key) || recordWorkplace(rec)
+                    : recordWorkplace(rec);
                   const leave = isLeaveCell(value);
                   const bg = leave
                     ? "#000000"
@@ -429,7 +445,9 @@ export function MonthGrid({
           </p>
           <p className="mt-1 text-neutral-600">{noteHours}</p>
           <p className="mt-1 text-neutral-600">
-            SF = SIFLEX, SX = SYNOPEX (nơi làm trong ngày, theo chấm công)
+            {useEntries
+              ? "SF = SIFLEX, SX = SYNOPEX (nơi OT — có thể khác nơi làm ban ngày)"
+              : "SF = SIFLEX, SX = SYNOPEX (nơi làm trong ngày)"}
           </p>
         </div>
       )}

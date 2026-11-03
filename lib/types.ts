@@ -42,6 +42,8 @@ export interface OtRecord {
   date: string; // yyyy-MM-dd
   /** "1.5" | "P" | "/" */
   value: string;
+  /** Nơi OT trong ngày (có thể khác nơi làm ban ngày): SIFLEX | SYNOPEX */
+  workplace?: string;
   updatedAt: string;
 }
 
