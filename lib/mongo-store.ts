@@ -8,6 +8,12 @@ import { getDb } from "./mongodb";
 import { parseMealRecord } from "./meal";
 import { parseOtValue } from "./ot";
 import {
+  isOtDateLocked,
+  normalizeOtMonthLocks,
+  otMonthKeyFromDate,
+  otMonthLockedEmployeeBlockMessage,
+} from "./ot-lock";
+import {
   employeeOtBlockedMessage,
   isOtWindowOpen,
   normalizeOtWindow,
@@ -43,6 +49,7 @@ type SettingsDoc = {
   columnColors?: unknown;
   monthColors?: unknown;
   otWindow?: unknown;
+  otMonthLocks?: unknown;
 };
 
 const EMP_TTL = 30_000;
@@ -636,14 +643,31 @@ export async function mongoHandler<T>(
         const emp = await employees.findOne({ name, active: true });
         if (!emp) return { ok: false, error: "Không tìm thấy nhân viên" };
         if (actor?.role !== "admin") {
-          const cfg = cacheGet<AppSettings>(SETTINGS_CACHE);
-          const otWindow = cfg
-            ? normalizeOtWindow(cfg.otWindow)
-            : normalizeOtWindow(
-                (await settings.findOne({ _id: SETTINGS_ID }))?.otWindow
-              );
-          if (!isOtWindowOpen(otWindow)) {
-            return { ok: false, error: employeeOtBlockedMessage(otWindow) };
+          let appSettings = cacheGet<AppSettings>(SETTINGS_CACHE);
+          if (!appSettings) {
+            const doc = await settings.findOne({ _id: SETTINGS_ID });
+            appSettings = {
+              columnColors: doc
+                ? normalizeColumnColors(doc.columnColors)
+                : DEFAULT_COLUMN_COLORS,
+              monthColors: normalizeMonthColors(doc?.monthColors),
+              otWindow: normalizeOtWindow(doc?.otWindow),
+              otMonthLocks: normalizeOtMonthLocks(doc?.otMonthLocks),
+            };
+            cacheSet(SETTINGS_CACHE, appSettings, SETTINGS_TTL);
+          }
+          if (isOtDateLocked(appSettings, date)) {
+            const [y, m] = otMonthKeyFromDate(date).split("-").map(Number);
+            return {
+              ok: false,
+              error: otMonthLockedEmployeeBlockMessage(y, m),
+            };
+          }
+          if (!isOtWindowOpen(appSettings.otWindow)) {
+            return {
+              ok: false,
+              error: employeeOtBlockedMessage(appSettings.otWindow),
+            };
           }
         }
 
@@ -754,17 +778,22 @@ export async function mongoHandler<T>(
             : DEFAULT_COLUMN_COLORS,
           monthColors: normalizeMonthColors(doc?.monthColors),
           otWindow: normalizeOtWindow(doc?.otWindow),
+          otMonthLocks: normalizeOtMonthLocks(doc?.otMonthLocks),
         };
         cacheSet(SETTINGS_CACHE, data, SETTINGS_TTL);
         return { ok: true, data: data as T };
       }
       case "updateSettings": {
+        if (actor?.role !== "admin") {
+          return { ok: false, error: "Không có quyền" };
+        }
         const doc = await settings.findOne({ _id: SETTINGS_ID });
         let columnColors = doc
           ? normalizeColumnColors(doc.columnColors)
           : DEFAULT_COLUMN_COLORS;
         const monthColors = normalizeMonthColors(doc?.monthColors);
         let otWindow = normalizeOtWindow(doc?.otWindow);
+        const otMonthLocks = normalizeOtMonthLocks(doc?.otMonthLocks);
         const monthKey = String(payload.monthKey || "").trim();
         if (monthKey) {
           if (!/^\d{4}-\d{2}$/.test(monthKey)) {
@@ -788,12 +817,39 @@ export async function mongoHandler<T>(
             otWindow = next;
           }
         }
+        if (payload.otMonthLock && typeof payload.otMonthLock === "object") {
+          const lockReq = payload.otMonthLock as {
+            month?: unknown;
+            lock?: unknown;
+            note?: unknown;
+          };
+          const lockMonth = String(lockReq.month || "").trim();
+          if (!/^\d{4}-\d{2}$/.test(lockMonth)) {
+            return { ok: false, error: "Tháng chốt OT không hợp lệ" };
+          }
+          const doLock = lockReq.lock === true || lockReq.lock === "true";
+          if (doLock) {
+            const note = String(lockReq.note || "").trim();
+            otMonthLocks[lockMonth] = {
+              lockedAt: new Date().toISOString(),
+              lockedBy: actor.name,
+              ...(note ? { note } : {}),
+            };
+          } else {
+            delete otMonthLocks[lockMonth];
+          }
+        }
         await settings.updateOne(
           { _id: SETTINGS_ID },
-          { $set: { columnColors, monthColors, otWindow } },
+          { $set: { columnColors, monthColors, otWindow, otMonthLocks } },
           { upsert: true }
         );
-        const data: AppSettings = { columnColors, monthColors, otWindow };
+        const data: AppSettings = {
+          columnColors,
+          monthColors,
+          otWindow,
+          otMonthLocks,
+        };
         cacheInvalidate(SETTINGS_CACHE);
         cacheSet(SETTINGS_CACHE, data, SETTINGS_TTL);
         return { ok: true, data: data as T };

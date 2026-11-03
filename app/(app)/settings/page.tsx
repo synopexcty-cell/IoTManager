@@ -30,6 +30,7 @@ import {
 } from "@/lib/ot-window";
 import { roleLabel } from "@/lib/roles";
 import { flushOfflineQueue, getSettings, updateSettings } from "@/lib/sheets";
+import { normalizeOtMonthLocks } from "@/lib/ot-lock";
 import type { AppSettings, ColumnColors, Employee } from "@/lib/types";
 import { daysInMonth, nowDateTimeLocal, todayISO, weekdayOf } from "@/lib/utils";
 import { AlertTriangle, Clock, Database, LogOut, Palette, RefreshCw } from "lucide-react";
@@ -114,6 +115,7 @@ export default function SettingsPage() {
           columnColors: normalizeColumnColors(s.columnColors),
           monthColors: s.monthColors || {},
           otWindow: normalizeOtWindow(s.otWindow),
+          otMonthLocks: normalizeOtMonthLocks(s.otMonthLocks),
         };
         setSettings(next);
         if (next.otWindow) {
@@ -186,6 +188,7 @@ export default function SettingsPage() {
           columnColors: normalizeColumnColors(res.data.columnColors),
           monthColors: res.data.monthColors || {},
           otWindow: normalizeOtWindow(res.data.otWindow),
+          otMonthLocks: normalizeOtMonthLocks(res.data.otMonthLocks),
         });
       }
       setColors(next);
@@ -204,6 +207,7 @@ export default function SettingsPage() {
       columnColors: normalizeColumnColors(data.columnColors),
       monthColors: data.monthColors || {},
       otWindow: normalizeOtWindow(data.otWindow),
+      otMonthLocks: normalizeOtMonthLocks(data.otMonthLocks),
     };
     setSettings(next);
     return next;

@@ -11,6 +11,12 @@ import { colorsForMonth, DEFAULT_COLUMN_COLORS } from "@/lib/column-colors";
 import { exportMonthGridXlsx } from "@/lib/export-xlsx";
 import { parseOtValue } from "@/lib/ot";
 import {
+  getOtMonthLock,
+  otMonthKey,
+  otMonthLockedEmployeeBlockMessage,
+  otMonthLockedMessage,
+} from "@/lib/ot-lock";
+import {
   employeeOtBlockedMessage,
   formatOtLocal,
   isOtWindowOpen,
@@ -23,11 +29,13 @@ import {
   listEmployees,
   listOt,
   saveOt,
+  updateSettings,
 } from "@/lib/sheets";
 import type {
   AttendanceRecord,
   ColumnColors,
   Employee,
+  OtMonthLock,
   OtRecord,
   OtWindow,
 } from "@/lib/types";
@@ -38,7 +46,7 @@ import {
   matchesCompany,
   parseWorkplace,
 } from "@/lib/workplace";
-import { ChevronLeft, ChevronRight, Download, Inbox } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Inbox, Lock, Unlock } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 function otSiteOf(
@@ -71,8 +79,10 @@ export default function OtPage() {
     DEFAULT_COLUMN_COLORS
   );
   const [otWindow, setOtWindow] = useState<OtWindow | null>(null);
+  const [monthLock, setMonthLock] = useState<OtMonthLock | null>(null);
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [loading, setLoading] = useState(true);
+  const [locking, setLocking] = useState(false);
   const [company, setCompany] = useState("");
   const [site, setSite] = useState("");
   /** Nơi OT khi đăng ký / sửa ô — có thể khác nơi làm ban ngày */
@@ -105,6 +115,7 @@ export default function OtPage() {
       setAttendance(att);
       setColumnColors(colorsForMonth(settings, year, month));
       setOtWindow(normalizeOtWindow(settings.otWindow));
+      setMonthLock(getOtMonthLock(settings, year, month));
     } finally {
       setLoading(false);
     }
@@ -127,7 +138,8 @@ export default function OtPage() {
   }, [otWorkplace, employees, user]);
 
   const otOpen = isOtWindowOpen(otWindow, nowTick);
-  const canEmployeeEdit = otOpen;
+  const monthLocked = Boolean(monthLock);
+  const canEmployeeEdit = otOpen && !monthLocked;
 
   const visibleEmployees = useMemo(() => {
     const byCompany = employees.filter((e) => matchesCompany(e, company));
@@ -166,6 +178,10 @@ export default function OtPage() {
     if (viewer) {
       toast("Tài khoản chỉ xem — không được sửa", "error");
       throw new Error("viewer");
+    }
+    if (!isAdmin && monthLocked) {
+      toast(otMonthLockedEmployeeBlockMessage(year, month), "error");
+      throw new Error("locked");
     }
     if (!isAdmin && !isOtWindowOpen(otWindow)) {
       toast(employeeOtBlockedMessage(otWindow), "error");
@@ -216,7 +232,49 @@ export default function OtPage() {
     });
   };
 
+  const handleToggleLock = async () => {
+    if (!isAdmin) return;
+    const nextLock = !monthLocked;
+    if (nextLock) {
+      const ok = window.confirm(
+        `Chốt lịch OT tháng ${month}/${year}?\nCNV sẽ không sửa được. Support có thể xuất Excel để báo ae.`
+      );
+      if (!ok) return;
+    } else {
+      const ok = window.confirm(
+        `Mở lại lịch OT tháng ${month}/${year}?\nCNV có thể đăng ký lại nếu đang trong khung giờ mở.`
+      );
+      if (!ok) return;
+    }
+    setLocking(true);
+    try {
+      const res = await updateSettings({
+        otMonthLock: {
+          month: otMonthKey(year, month),
+          lock: nextLock,
+        },
+      });
+      if (!res.ok) {
+        toast(res.error || "Không cập nhật được trạng thái chốt", "error");
+        return;
+      }
+      const lock = getOtMonthLock(res.data, year, month);
+      setMonthLock(lock);
+      toast(
+        nextLock
+          ? `Đã chốt lịch OT tháng ${month}/${year}`
+          : `Đã mở lại lịch OT tháng ${month}/${year}`,
+        "success"
+      );
+    } finally {
+      setLocking(false);
+    }
+  };
+
   const exportXlsx = () => {
+    const lockNote = monthLock
+      ? `ĐÃ CHỐT — ${otMonthLockedMessage(year, month, monthLock)}`
+      : `Chưa chốt — bản nháp tháng ${month}/${year}`;
     void exportMonthGridXlsx({
       year,
       month,
@@ -224,17 +282,20 @@ export default function OtPage() {
       entries: visibleRecords,
       records: visibleAttendance,
       columnColors,
-      title: `Lịch OT — Tháng ${month}/${year}`,
+      title: monthLocked
+        ? `Lịch OT — Tháng ${month}/${year} (ĐÃ CHỐT)`
+        : `Lịch OT — Tháng ${month}/${year}`,
       hoursLabel: "Giờ OT",
       footerLabel: "Tổng người OT",
       notes: [
         "Note",
+        lockNote,
         "P --> Nghỉ phép",
         "/ --> Nghỉ",
         "Số = số giờ OT",
         "SF = SIFLEX, SX = SYNOPEX (nơi OT — có thể khác nơi làm ban ngày)",
       ],
-      filename: `ot_${year}-${String(month).padStart(2, "0")}.xlsx`,
+      filename: `ot_${year}-${String(month).padStart(2, "0")}${monthLocked ? "_chot" : ""}.xlsx`,
       sheetName: "OT",
     }).catch(() => toast("Không xuất được file Excel", "error"));
   };
@@ -306,7 +367,7 @@ export default function OtPage() {
                 </select>
               </>
             )}
-            {!viewer && (
+            {!viewer && (isAdmin || canEmployeeEdit) && (
               <select
                 aria-label="Nơi OT khi đăng ký"
                 value={otWorkplace}
@@ -322,45 +383,83 @@ export default function OtPage() {
               </select>
             )}
           </div>
-          {seeAll && (
-            <Button
-              variant="outline"
-              onClick={exportXlsx}
-              disabled={visibleEmployees.length === 0}
-              className="sm:ml-auto"
-            >
-              <Download className="h-4 w-4" />
-              Xuất Excel
-            </Button>
-          )}
+          <div className="flex flex-wrap gap-2 sm:ml-auto">
+            {isAdmin && (
+              <Button
+                variant={monthLocked ? "outline" : "primary"}
+                onClick={() => void handleToggleLock()}
+                loading={locking}
+              >
+                {monthLocked ? (
+                  <>
+                    <Unlock className="h-4 w-4" />
+                    Mở lại
+                  </>
+                ) : (
+                  <>
+                    <Lock className="h-4 w-4" />
+                    Chốt lịch tháng này
+                  </>
+                )}
+              </Button>
+            )}
+            {seeAll && (
+              <Button
+                variant="outline"
+                onClick={exportXlsx}
+                disabled={visibleEmployees.length === 0}
+              >
+                <Download className="h-4 w-4" />
+                Xuất Excel
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
 
       <div
         className={`rounded-lg px-4 py-3 text-sm ${
-          viewer
-            ? "bg-neutral-50 text-neutral-700"
-            : isAdmin
+          monthLocked
+            ? "bg-sky-50 text-sky-900"
+            : viewer
               ? "bg-neutral-50 text-neutral-700"
-              : otOpen
-                ? "bg-emerald-50 text-emerald-800"
-                : "bg-amber-50 text-amber-800"
+              : isAdmin
+                ? "bg-neutral-50 text-neutral-700"
+                : otOpen
+                  ? "bg-emerald-50 text-emerald-800"
+                  : "bg-amber-50 text-amber-800"
         }`}
       >
-        {viewer
-          ? "Tài khoản chỉ xem — không đăng ký hoặc sửa OT."
-          : isAdmin
-            ? otOpen && otWindow
-              ? `Nhân viên đang được đăng ký OT đến ${formatOtLocal(otWindow.to)}. Quản trị luôn sửa được.`
-              : `${employeeOtBlockedMessage(otWindow, nowTick)} Quản trị vẫn sửa được.`
-            : otOpen && otWindow
-              ? `Đang mở đăng ký OT đến ${formatOtLocal(otWindow.to)}.`
-              : employeeOtBlockedMessage(otWindow, nowTick)}
-        {!viewer && (
-          <span className="mt-1 block text-neutral-600">
-            Nơi OT chọn riêng (ví dụ làm ngày tại SIFLEX, về SYNOPEX OT) — không
-            phụ thuộc nơi chấm công ban ngày.
-          </span>
+        {monthLocked ? (
+          <>
+            <p className="font-medium">
+              {otMonthLockedMessage(year, month, monthLock)}
+            </p>
+            <p className="mt-1 text-sky-800/80">
+              {viewer || seeAll
+                ? "Support có thể xuất Excel để báo CNV. CNV mở app xem lịch của mình."
+                : "Bạn chỉ xem — liên hệ quản trị nếu lịch sai."}
+              {isAdmin ? " Quản trị vẫn sửa được khi cần gấp." : ""}
+            </p>
+          </>
+        ) : (
+          <>
+            {viewer
+              ? "Tài khoản chỉ xem — không đăng ký hoặc sửa OT. Lịch tháng này chưa chốt."
+              : isAdmin
+                ? otOpen && otWindow
+                  ? `Nhân viên đang được đăng ký OT đến ${formatOtLocal(otWindow.to)}. Quản trị luôn sửa được. Chưa chốt — bấm «Chốt lịch tháng này» khi đã xếp xong.`
+                  : `${employeeOtBlockedMessage(otWindow, nowTick)} Quản trị vẫn sửa được. Chưa chốt.`
+                : otOpen && otWindow
+                  ? `Đang mở đăng ký OT đến ${formatOtLocal(otWindow.to)}.`
+                  : employeeOtBlockedMessage(otWindow, nowTick)}
+            {!viewer && (
+              <span className="mt-1 block text-neutral-600">
+                Nơi OT chọn riêng (ví dụ làm ngày tại SIFLEX, về SYNOPEX OT) —
+                không phụ thuộc nơi chấm công ban ngày.
+              </span>
+            )}
+          </>
         )}
       </div>
 
@@ -386,9 +485,11 @@ export default function OtPage() {
           noteHours={
             viewer
               ? "Tài khoản chỉ xem."
-              : isAdmin || canEmployeeEdit
-                ? "Số = số giờ OT. Chọn «Nơi OT khi đăng ký» rồi bấm ô để lưu (P = phép, / = nghỉ, xóa ô = bỏ)."
-                : "Chỉ xem — ngoài thời gian đăng ký OT."
+              : monthLocked && !isAdmin
+                ? otMonthLockedEmployeeBlockMessage(year, month)
+                : isAdmin || canEmployeeEdit
+                  ? "Số = số giờ OT. Chọn «Nơi OT khi đăng ký» rồi bấm ô để lưu (P = phép, / = nghỉ, xóa ô = bỏ)."
+                  : "Chỉ xem — ngoài thời gian đăng ký OT."
           }
           editable={!viewer && (isAdmin || canEmployeeEdit)}
           canEditName={(name) =>

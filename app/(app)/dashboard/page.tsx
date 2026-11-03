@@ -9,9 +9,13 @@ import {
   CardTitle,
 } from "@/components/ui/Card";
 import { CardSkeleton } from "@/components/ui/Skeleton";
+import {
+  getOtMonthLock,
+  otMonthLockedMessage,
+} from "@/lib/ot-lock";
 import { isViewer, roleLabel, workingStaff } from "@/lib/roles";
-import { listAttendance, listEmployees } from "@/lib/sheets";
-import type { AttendanceRecord } from "@/lib/types";
+import { getSettings, listAttendance, listEmployees } from "@/lib/sheets";
+import type { AttendanceRecord, OtMonthLock } from "@/lib/types";
 import { formatShortDate, statusLabel, todayISO } from "@/lib/utils";
 import { Clock, Eye, History, LogIn, LogOut, Timer, Utensils } from "lucide-react";
 import Link from "next/link";
@@ -24,17 +28,25 @@ export default function DashboardPage() {
   const [recent, setRecent] = useState<AttendanceRecord[]>([]);
   const [presentCount, setPresentCount] = useState(0);
   const [staffCount, setStaffCount] = useState(0);
+  const [otLock, setOtLock] = useState<OtMonthLock | null>(null);
+  const [otYear, setOtYear] = useState(() => Number(todayISO().slice(0, 4)));
+  const [otMonth, setOtMonth] = useState(() => Number(todayISO().slice(5, 7)));
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
     const date = todayISO();
+    const y = Number(date.slice(0, 4));
+    const m = Number(date.slice(5, 7));
+    setOtYear(y);
+    setOtMonth(m);
     if (viewer) {
       Promise.all([
         listEmployees(),
         listAttendance({ from: date, to: date }),
+        getSettings(),
       ])
-        .then(([emps, todayRecords]) => {
+        .then(([emps, todayRecords, settings]) => {
           const staff = workingStaff(emps);
           const names = new Set(staff.map((e) => e.name));
           const present = new Set(
@@ -45,6 +57,7 @@ export default function DashboardPage() {
           setStaffCount(staff.length);
           setPresentCount(present.size);
           setRecent(todayRecords.slice(0, 8));
+          setOtLock(getOtMonthLock(settings, y, m));
         })
         .finally(() => setLoading(false));
       return;
@@ -52,10 +65,12 @@ export default function DashboardPage() {
     Promise.all([
       listAttendance({ name: user.name, from: date, to: date }),
       listAttendance({ name: user.name }),
+      getSettings(),
     ])
-      .then(([todayRecords, all]) => {
+      .then(([todayRecords, all, settings]) => {
         setToday(todayRecords[0] ?? null);
         setRecent(all.slice(0, 5));
+        setOtLock(getOtMonthLock(settings, y, m));
       })
       .finally(() => setLoading(false));
   }, [user, viewer]);
@@ -128,6 +143,25 @@ export default function DashboardPage() {
               </Link>
             </CardContent>
           </Card>
+          {otLock ? (
+            <Card className="border-l-4 border-l-sky-500 sm:col-span-2 lg:col-span-3">
+              <CardHeader>
+                <CardDescription>Lịch OT tháng {otMonth}/{otYear}</CardDescription>
+                <CardTitle className="text-base">
+                  {otMonthLockedMessage(otYear, otMonth, otLock)}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <Link
+                  href="/ot"
+                  className="inline-flex h-11 min-h-[44px] items-center justify-center gap-2 rounded-lg bg-sky-600 px-4 text-sm font-medium text-white hover:bg-sky-700"
+                >
+                  <Timer className="h-4 w-4" />
+                  Mở Lịch OT / xuất Excel báo CNV
+                </Link>
+              </CardContent>
+            </Card>
+          ) : null}
         </div>
         {recent.length > 0 && (
           <Card>
@@ -173,6 +207,30 @@ export default function DashboardPage() {
           Tổng quan chấm công của bạn hôm nay
         </p>
       </div>
+
+      {otLock ? (
+        <Card className="border-l-4 border-l-sky-500">
+          <CardHeader>
+            <CardDescription>Thông báo OT</CardDescription>
+            <CardTitle className="text-base">
+              Lịch OT tháng {otMonth}/{otYear} đã chốt
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 pt-0">
+            <p className="text-sm text-neutral-600">
+              {otMonthLockedMessage(otYear, otMonth, otLock)} Xem lịch của bạn
+              trên trang Lịch OT.
+            </p>
+            <Link
+              href="/ot"
+              className="inline-flex h-11 min-h-[44px] items-center justify-center gap-2 rounded-lg bg-sky-600 px-4 text-sm font-medium text-white hover:bg-sky-700"
+            >
+              <Timer className="h-4 w-4" />
+              Xem lịch OT
+            </Link>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card className="border-l-4 border-l-primary">
