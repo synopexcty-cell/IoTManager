@@ -37,7 +37,7 @@ import {
   parseGender,
   todayISO,
 } from "./utils";
-import { employeeCompany, parseWorkplace } from "./workplace";
+import { HOME_COMPANY, parseWorkplace } from "./workplace";
 
 const SETTINGS_ID = "app";
 const SETTINGS_CACHE = "settings:app";
@@ -67,7 +67,7 @@ function publicEmployee(emp: EmpDoc, includePii: boolean) {
     employeeCode: emp.employeeCode || "",
     team: emp.team || "",
     shift: emp.shift || "",
-    company: employeeCompany(emp),
+    company: HOME_COMPANY,
     inWorkBoard: emp.role === "admin" ? emp.inWorkBoard === true : undefined,
     phone: "",
     cccd: "",
@@ -405,7 +405,6 @@ export async function mongoHandler<T>(
         const birthDate = parseBirthDate(payload.birthDate);
         const team = String(payload.team || "").trim();
         const shift = String(payload.shift || "").trim();
-        const company = parseWorkplace(payload.company || payload.workplace);
         const inWorkBoard =
           role === "admin" &&
           (payload.inWorkBoard === true ||
@@ -432,7 +431,7 @@ export async function mongoHandler<T>(
           birthDate,
           team,
           shift,
-          company,
+          company: HOME_COMPANY,
           ...(inWorkBoard ? { inWorkBoard: true } : {}),
           mustChangePassword: true,
         };
@@ -498,7 +497,7 @@ export async function mongoHandler<T>(
             birthDate: parseBirthDate(raw.birthDate),
             team: String(raw.team || "").trim(),
             shift: String(raw.shift || "").trim(),
-            company: parseWorkplace(raw.company || raw.workplace),
+            company: HOME_COMPANY,
             mustChangePassword: true,
           });
         });
@@ -550,10 +549,6 @@ export async function mongoHandler<T>(
 
         const team = String(payload.team ?? prev.team ?? "").trim();
         const shift = String(payload.shift ?? prev.shift ?? "").trim();
-        const company =
-          payload.company !== undefined || payload.workplace !== undefined
-            ? parseWorkplace(payload.company || payload.workplace)
-            : employeeCompany(prev);
         const inWorkBoard =
           role === "admin" &&
           (payload.inWorkBoard === true ||
@@ -571,7 +566,7 @@ export async function mongoHandler<T>(
           birthDate,
           team,
           shift,
-          company,
+          company: HOME_COMPANY,
           ...(inWorkBoard ? { inWorkBoard: true } : {}),
           ...(pinRaw ? { mustChangePassword: true } : {}),
         };

@@ -13,11 +13,7 @@ import { canSeeAll, workingStaff } from "@/lib/roles";
 import { getSettings, listAttendance, listEmployees } from "@/lib/sheets";
 import type { AttendanceRecord, ColumnColors, Employee } from "@/lib/types";
 import { monthRange, todayISO } from "@/lib/utils";
-import {
-  WORKPLACES,
-  matchesCompany,
-  parseWorkplace,
-} from "@/lib/workplace";
+import { WORKPLACES, parseWorkplace, workplaceLabel } from "@/lib/workplace";
 import { ChevronLeft, ChevronRight, Download, Inbox } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -34,7 +30,6 @@ export default function HistoryPage() {
     DEFAULT_COLUMN_COLORS
   );
   const [loading, setLoading] = useState(true);
-  const [company, setCompany] = useState("");
   const [site, setSite] = useState("");
 
   const { from, to } = useMemo(() => monthRange(year, month), [year, month]);
@@ -74,15 +69,14 @@ export default function HistoryPage() {
   }, [load]);
 
   const visibleEmployees = useMemo(() => {
-    const byCompany = employees.filter((e) => matchesCompany(e, company));
-    if (!site) return byCompany;
+    if (!site) return employees;
     const names = new Set(
       records
         .filter((r) => parseWorkplace(r.workplace) === site)
         .map((r) => r.employeeName)
     );
-    return byCompany.filter((e) => names.has(e.name));
-  }, [employees, records, company, site]);
+    return employees.filter((e) => names.has(e.name));
+  }, [employees, records, site]);
   const visibleNames = useMemo(
     () => new Set(visibleEmployees.map((e) => e.name)),
     [visibleEmployees]
@@ -112,7 +106,7 @@ export default function HistoryPage() {
         "P --> Nghỉ phép",
         "/ --> Nghỉ",
         "Số = số giờ làm (vào → ra)",
-        "SF = SIFLEX, SX = SYNOPEX (nơi làm trong ngày)",
+        "SF = SIFLEX (công trường), SX = SYNOPEX (cty nhà) — nơi làm trong ngày",
       ],
       filename: `chamcong_${year}-${String(month).padStart(2, "0")}.xlsx`,
       sheetName: "Cong",
@@ -157,34 +151,19 @@ export default function HistoryPage() {
               <ChevronRight className="h-4 w-4" />
             </Button>
             {seeAll && (
-              <>
-                <select
-                  aria-label="Đơn vị"
-                  value={company}
-                  onChange={(e) => setCompany(e.target.value)}
-                  className="h-11 min-h-[44px] rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                >
-                  <option value="">Tất cả đơn vị</option>
-                  {WORKPLACES.map((w) => (
-                    <option key={w} value={w}>
-                      {w}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  aria-label="Nơi làm việc"
-                  value={site}
-                  onChange={(e) => setSite(e.target.value)}
-                  className="h-11 min-h-[44px] rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                >
-                  <option value="">Tất cả nơi làm</option>
-                  {WORKPLACES.map((w) => (
-                    <option key={w} value={w}>
-                      {w}
-                    </option>
-                  ))}
-                </select>
-              </>
+              <select
+                aria-label="Nơi làm việc"
+                value={site}
+                onChange={(e) => setSite(e.target.value)}
+                className="h-11 min-h-[44px] rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                <option value="">Tất cả nơi làm</option>
+                {WORKPLACES.map((w) => (
+                  <option key={w} value={w}>
+                    {workplaceLabel(w)}
+                  </option>
+                ))}
+              </select>
             )}
           </div>
           {seeAll && (

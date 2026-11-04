@@ -19,7 +19,7 @@ export interface Employee {
   birthDate?: string;
   team?: string;
   shift?: string;
-  /** Đơn vị: người của SIFLEX | SYNOPEX */
+  /** Luôn SYNOPEX — mọi người thuộc cty nhà (giữ field cho dữ liệu cũ) */
   company?: string;
   /**
    * Quản trị đặc biệt: hiện trên bảng công / OT / ăn ngoài.

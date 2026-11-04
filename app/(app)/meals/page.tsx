@@ -18,7 +18,6 @@ import {
 } from "@/lib/sheets";
 import type { ColumnColors, Employee, MealRecord } from "@/lib/types";
 import { monthRange, todayISO } from "@/lib/utils";
-import { WORKPLACES, matchesCompany } from "@/lib/workplace";
 import { ChevronLeft, ChevronRight, Download, Inbox } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -37,7 +36,6 @@ export default function MealsPage() {
     DEFAULT_COLUMN_COLORS
   );
   const [loading, setLoading] = useState(true);
-  const [company, setCompany] = useState("");
 
   const { from, to } = useMemo(() => monthRange(year, month), [year, month]);
 
@@ -78,21 +76,8 @@ export default function MealsPage() {
     load();
   }, [load]);
 
-  const visibleEmployees = useMemo(
-    () => employees.filter((e) => matchesCompany(e, company)),
-    [employees, company]
-  );
-  const visibleNames = useMemo(
-    () => new Set(visibleEmployees.map((e) => e.name)),
-    [visibleEmployees]
-  );
-  const visibleRecords = useMemo(
-    () =>
-      company
-        ? records.filter((r) => visibleNames.has(r.employeeName))
-        : records,
-    [records, company, visibleNames]
-  );
+  const visibleEmployees = employees;
+  const visibleRecords = records;
 
   const handleToggle = async (
     employeeName: string,
@@ -189,21 +174,6 @@ export default function MealsPage() {
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
-            {seeAll && (
-              <select
-                aria-label="Đơn vị"
-                value={company}
-                onChange={(e) => setCompany(e.target.value)}
-                className="h-11 min-h-[44px] rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-              >
-                <option value="">Tất cả đơn vị</option>
-                {WORKPLACES.map((w) => (
-                  <option key={w} value={w}>
-                    {w}
-                  </option>
-                ))}
-              </select>
-            )}
           </div>
           {seeAll && (
             <Button

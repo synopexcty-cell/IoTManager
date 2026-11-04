@@ -1,5 +1,12 @@
 import { foldVi } from "./utils";
 
+/** Mọi tài khoản thuộc SYNOPEX (cty nhà) */
+export const HOME_COMPANY = "SYNOPEX" as const;
+
+/**
+ * Nơi làm việc trong ngày / nơi OT:
+ * SYNOPEX = cty nhà, SIFLEX = công trường.
+ */
 export const WORKPLACES = ["SIFLEX", "SYNOPEX"] as const;
 export type Workplace = (typeof WORKPLACES)[number] | "";
 
@@ -25,18 +32,9 @@ export function workplaceShort(raw: unknown): string {
   return "";
 }
 
-/** Đơn vị nhân viên thuộc về (người của SIFLEX / SYNOPEX) */
-export function employeeCompany(emp: {
-  company?: string;
-  workplace?: string;
-}): Workplace {
-  return parseWorkplace(emp.company || emp.workplace);
-}
-
-export function matchesCompany(
-  emp: { company?: string; workplace?: string },
-  filter: string
-): boolean {
-  if (!filter) return true;
-  return employeeCompany(emp) === filter;
+export function workplaceLabel(raw: unknown): string {
+  const w = parseWorkplace(raw);
+  if (w === "SIFLEX") return "SIFLEX (công trường)";
+  if (w === "SYNOPEX") return "SYNOPEX (cty nhà)";
+  return "";
 }

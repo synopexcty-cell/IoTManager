@@ -21,7 +21,7 @@ import type {
   MealRecord,
 } from "./types";
 import { daysInMonth, formatShortDate, weekdayOf } from "./utils";
-import { employeeCompany, parseWorkplace } from "./workplace";
+import { parseWorkplace } from "./workplace";
 
 type Border = { style: "thin"; color: { rgb: string } };
 type CellStyle = {
@@ -168,8 +168,7 @@ async function writeSheet(
 }
 
 function nameText(emp: Employee) {
-  const company = employeeCompany(emp);
-  return company ? `${emp.name}\n${company}` : emp.name;
+  return emp.name;
 }
 
 function dayStyle(
@@ -572,7 +571,6 @@ export async function exportEmployeeListXlsx(opts: {
   const headers = [
     "Mã NV",
     "Họ tên",
-    "Đơn vị",
     "Giới tính",
     "Ngày sinh",
     "SĐT",
@@ -581,7 +579,7 @@ export async function exportEmployeeListXlsx(opts: {
     "Trạng thái",
   ];
   const colCount = headers.length;
-  const title = `Nhân viên (${opts.employees.length})`;
+  const title = `Nhân viên SYNOPEX (${opts.employees.length})`;
   const head = style({ bg: "#f5f5f5", bold: true });
   const titleStyle = style({ bg: "#ffffff", bold: true, left: true, sz: 12 });
   const left = style({ bg: "#ffffff", left: true });
@@ -596,7 +594,6 @@ export async function exportEmployeeListXlsx(opts: {
     const row: SheetCell[] = [
       cell(dash(emp.employeeCode), center),
       cell(emp.name, style({ bg: "#ffffff", bold: true, left: true })),
-      cell(dash(employeeCompany(emp)), center),
       cell(dash(emp.gender), center),
       cell(emp.birthDate ? formatShortDate(emp.birthDate) : "—", center),
       cell(dash(emp.phone), center),
@@ -623,7 +620,7 @@ export async function exportEmployeeListXlsx(opts: {
     opts.filename || "nhan_vien.xlsx",
     "Nhan vien",
     {
-      cols: [12, 24, 12, 10, 12, 14, 16, 12, 12],
+      cols: [12, 24, 10, 12, 14, 16, 18, 12],
       rowHpt: 20,
     }
   );

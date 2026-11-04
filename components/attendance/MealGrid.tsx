@@ -11,7 +11,6 @@ import { freezeCol } from "@/lib/freeze-cols";
 import { todayCol, todayDayOf } from "@/lib/today-column";
 import type { ColumnColors, Employee, MealRecord } from "@/lib/types";
 import { cn, daysInMonth, weekdayOf } from "@/lib/utils";
-import { employeeCompany } from "@/lib/workplace";
 import { useState } from "react";
 
 export function MealGrid({
@@ -190,11 +189,6 @@ export function MealGrid({
                 )}
                 <td className={cn(td, freezeCol.name, "text-left font-medium")}>
                   {emp.name}
-                  {employeeCompany(emp) ? (
-                    <span className="mt-0.5 block text-[10px] font-normal text-neutral-500">
-                      {employeeCompany(emp)}
-                    </span>
-                  ) : null}
                 </td>
                 {cells.map((cell, i) => {
                   const day = i + 1;

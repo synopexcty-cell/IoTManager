@@ -341,7 +341,6 @@ export async function addEmployee(payload: {
         birthDate: "",
         team: "",
         shift: "",
-        company: "",
         ...payload,
       },
     },

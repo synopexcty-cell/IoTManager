@@ -41,10 +41,10 @@ import type {
 } from "@/lib/types";
 import { daysInMonth, formatShortDate, monthRange, todayISO } from "@/lib/utils";
 import {
+  HOME_COMPANY,
   WORKPLACES,
-  employeeCompany,
-  matchesCompany,
   parseWorkplace,
+  workplaceLabel,
 } from "@/lib/workplace";
 import { ChevronLeft, ChevronRight, Download, Inbox, Lock, Unlock } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -91,7 +91,6 @@ export default function OtPage() {
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [loading, setLoading] = useState(true);
   const [locking, setLocking] = useState(false);
-  const [company, setCompany] = useState("");
   const [site, setSite] = useState("");
   /** Nơi OT khi đăng ký / sửa ô — có thể khác nơi làm ban ngày */
   const [otWorkplace, setOtWorkplace] = useState("");
@@ -143,10 +142,8 @@ export default function OtPage() {
 
   useEffect(() => {
     if (otWorkplace || !user) return;
-    const self = employees.find((e) => e.name === user.name);
-    const fallback = employeeCompany(self || {});
-    if (fallback) setOtWorkplace(fallback);
-  }, [otWorkplace, employees, user]);
+    setOtWorkplace(HOME_COMPANY);
+  }, [otWorkplace, user]);
 
   const otOpen = isOtWindowOpen(otWindow, nowTick);
   const focusLock = getOtDayLock({ otDayLocks: dayLocks }, focusDate);
@@ -163,15 +160,14 @@ export default function OtPage() {
   }, [year, month]);
 
   const visibleEmployees = useMemo(() => {
-    const byCompany = employees.filter((e) => matchesCompany(e, company));
-    if (!site) return byCompany;
+    if (!site) return employees;
     const names = new Set(
       records
         .filter((r) => otSiteOf(r, attendance) === site)
         .map((r) => r.employeeName)
     );
-    return byCompany.filter((e) => names.has(e.name));
-  }, [employees, records, attendance, company, site]);
+    return employees.filter((e) => names.has(e.name));
+  }, [employees, records, attendance, site]);
   const visibleNames = useMemo(
     () => new Set(visibleEmployees.map((e) => e.name)),
     [visibleEmployees]
@@ -379,34 +375,19 @@ export default function OtPage() {
               ))}
             </select>
             {seeAll && (
-              <>
-                <select
-                  aria-label="Đơn vị"
-                  value={company}
-                  onChange={(e) => setCompany(e.target.value)}
-                  className="h-11 min-h-[44px] rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                >
-                  <option value="">Tất cả đơn vị</option>
-                  {WORKPLACES.map((w) => (
-                    <option key={w} value={w}>
-                      {w}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  aria-label="Lọc nơi OT"
-                  value={site}
-                  onChange={(e) => setSite(e.target.value)}
-                  className="h-11 min-h-[44px] rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                >
-                  <option value="">Tất cả nơi OT</option>
-                  {WORKPLACES.map((w) => (
-                    <option key={w} value={w}>
-                      {w}
-                    </option>
-                  ))}
-                </select>
-              </>
+              <select
+                aria-label="Lọc nơi OT"
+                value={site}
+                onChange={(e) => setSite(e.target.value)}
+                className="h-11 min-h-[44px] rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                <option value="">Tất cả nơi OT</option>
+                {WORKPLACES.map((w) => (
+                  <option key={w} value={w}>
+                    {workplaceLabel(w)}
+                  </option>
+                ))}
+              </select>
             )}
             {!viewer && (isAdmin || canEmployeeEdit) && (
               <select
@@ -418,7 +399,7 @@ export default function OtPage() {
                 <option value="">— Nơi OT khi đăng ký —</option>
                 {WORKPLACES.map((w) => (
                   <option key={w} value={w}>
-                    OT tại {w}
+                    OT tại {workplaceLabel(w)}
                   </option>
                 ))}
               </select>

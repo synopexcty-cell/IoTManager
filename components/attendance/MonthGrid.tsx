@@ -16,7 +16,6 @@ import {
 import { formatOtDisplay } from "@/lib/ot";
 import type { AttendanceRecord, ColumnColors, Employee } from "@/lib/types";
 import {
-  employeeCompany,
   parseWorkplace,
   workplaceShort,
 } from "@/lib/workplace";
@@ -281,11 +280,6 @@ export function MonthGrid({
                 )}
                 <td className={cn(td, freezeCol.name, "text-left font-medium")}>
                   {emp.name}
-                  {employeeCompany(emp) ? (
-                    <span className="mt-0.5 block text-[10px] font-normal text-neutral-500">
-                      {employeeCompany(emp)}
-                    </span>
-                  ) : null}
                 </td>
                 {cells.map((value, i) => {
                   const day = i + 1;

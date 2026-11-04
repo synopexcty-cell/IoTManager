@@ -32,9 +32,10 @@ import {
   todayISO,
 } from "@/lib/utils";
 import {
+  HOME_COMPANY,
   WORKPLACES,
-  employeeCompany,
   parseWorkplace,
+  workplaceLabel,
 } from "@/lib/workplace";
 import { CalendarDays, LogIn, LogOut, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -102,16 +103,14 @@ export default function AttendancePage() {
       setWorkplace(parseWorkplace(last.workplace));
       return;
     }
-    const emp = employees.find((e) => e.name === subjectName);
-    const fallback = employeeCompany(emp || {});
-    if (fallback) setWorkplace(fallback);
-  }, [workplace, history, employees, subjectName]);
+    setWorkplace(HOME_COMPANY);
+  }, [workplace, history, subjectName]);
 
   const handleCheckIn = async () => {
     if (!user || !subjectName) return;
     const site = parseWorkplace(workplace);
     if (!site) {
-      toast("Chọn nơi làm việc hôm nay (SIFLEX hoặc SYNOPEX)", "error");
+      toast("Chọn nơi làm việc hôm nay", "error");
       return;
     }
     setBusy("in");
@@ -242,7 +241,6 @@ export default function AttendancePage() {
                     <option key={emp.name} value={emp.name}>
                       {emp.employeeCode ? `${emp.employeeCode} — ` : ""}
                       {emp.name}
-                      {employeeCompany(emp) ? ` · ${employeeCompany(emp)}` : ""}
                     </option>
                   ))}
                 </select>
@@ -288,15 +286,15 @@ export default function AttendancePage() {
               onChange={(e) => setWorkplace(e.target.value)}
               className="h-11 min-h-[44px] w-full rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
             >
-              <option value="">— Chọn SIFLEX hoặc SYNOPEX —</option>
+              <option value="">— Chọn nơi làm hôm nay —</option>
               {WORKPLACES.map((w) => (
                 <option key={w} value={w}>
-                  {w}
+                  {workplaceLabel(w)}
                 </option>
               ))}
             </select>
             <p className="text-xs text-neutral-500">
-              Người thuộc đơn vị khác vẫn chọn nơi đang làm trong ngày.
+              SYNOPEX = cty nhà · SIFLEX = công trường (nơi làm trong ngày).
             </p>
           </div>
 
