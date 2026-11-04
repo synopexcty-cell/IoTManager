@@ -326,6 +326,8 @@ export async function addEmployee(payload: {
   team?: string;
   shift?: string;
   company?: string;
+  /** Quản trị đặc biệt: hiện trên bảng công / OT / ăn ngoài */
+  inWorkBoard?: boolean;
 }) {
   const res = await callSheets<Employee>(
     {
@@ -392,6 +394,8 @@ export async function updateEmployee(payload: {
   team?: string;
   shift?: string;
   company?: string;
+  /** Quản trị đặc biệt: hiện trên bảng công / OT / ăn ngoài */
+  inWorkBoard?: boolean;
 }) {
   const res = await callSheets<Employee>(
     { action: "updateEmployee", payload },

@@ -601,7 +601,7 @@ export async function exportEmployeeListXlsx(opts: {
       cell(emp.birthDate ? formatShortDate(emp.birthDate) : "—", center),
       cell(dash(emp.phone), center),
       cell(dash(emp.cccd), center),
-      cell(roleLabel(emp.role), left),
+      cell(roleLabel(emp.role, emp.inWorkBoard), left),
       cell(
         emp.active ? "Hoạt động" : "Đã khóa",
         emp.active ? activeStyle : lockedStyle

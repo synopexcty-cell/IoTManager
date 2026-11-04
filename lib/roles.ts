@@ -54,8 +54,13 @@ export function parseRole(raw: unknown): Role {
   return "employee";
 }
 
-export function roleLabel(role?: Role | string | null): string {
-  if (role === "admin") return "Quản trị";
+export function roleLabel(
+  role?: Role | string | null,
+  inWorkBoard?: boolean
+): string {
+  if (role === "admin") {
+    return inWorkBoard ? "Quản trị (có công)" : "Quản trị";
+  }
   if (role === "hr") return "HR";
   if (role === "accountant") return "Kế toán";
   if (role === "viewer") return "Chỉ xem";
@@ -77,7 +82,16 @@ export function canSeeAll(role?: Role | string | null): boolean {
   return role === "admin" || isViewOnly(role);
 }
 
-/** Nhân viên / quản trị hiện trên bảng công, OT, ăn ngoài */
+/** Có hiện trên bảng công / OT / ăn ngoài */
+export function isInWorkBoard(
+  emp: Pick<Employee, "role" | "inWorkBoard">
+): boolean {
+  if (isViewOnly(emp.role)) return false;
+  if (emp.role === "admin") return emp.inWorkBoard === true;
+  return true;
+}
+
+/** Nhân viên + quản trị đặc biệt (có công) — không gồm admin HR/support */
 export function workingStaff(emps: Employee[]): Employee[] {
-  return emps.filter((e) => e.active && !isViewOnly(e.role));
+  return emps.filter((e) => e.active && isInWorkBoard(e));
 }

@@ -68,6 +68,7 @@ function publicEmployee(emp: EmpDoc, includePii: boolean) {
     team: emp.team || "",
     shift: emp.shift || "",
     company: employeeCompany(emp),
+    inWorkBoard: emp.role === "admin" ? emp.inWorkBoard === true : undefined,
     phone: "",
     cccd: "",
     address: "",
@@ -405,6 +406,10 @@ export async function mongoHandler<T>(
         const team = String(payload.team || "").trim();
         const shift = String(payload.shift || "").trim();
         const company = parseWorkplace(payload.company || payload.workplace);
+        const inWorkBoard =
+          role === "admin" &&
+          (payload.inWorkBoard === true ||
+            String(payload.inWorkBoard) === "true");
         if (!name || !employeeCode || !isValidPin(pin)) {
           return { ok: false, error: "Họ tên, mã NV và mật khẩu 4–8 số là bắt buộc" };
         }
@@ -428,6 +433,7 @@ export async function mongoHandler<T>(
           team,
           shift,
           company,
+          ...(inWorkBoard ? { inWorkBoard: true } : {}),
           mustChangePassword: true,
         };
         await employees.insertOne(emp);
@@ -548,6 +554,10 @@ export async function mongoHandler<T>(
           payload.company !== undefined || payload.workplace !== undefined
             ? parseWorkplace(payload.company || payload.workplace)
             : employeeCompany(prev);
+        const inWorkBoard =
+          role === "admin" &&
+          (payload.inWorkBoard === true ||
+            String(payload.inWorkBoard) === "true");
         const emp: Employee = {
           name,
           pin: pinRaw || prev.pin || "",
@@ -562,11 +572,18 @@ export async function mongoHandler<T>(
           team,
           shift,
           company,
+          ...(inWorkBoard ? { inWorkBoard: true } : {}),
           ...(pinRaw ? { mustChangePassword: true } : {}),
         };
         await employees.updateOne(
           { name: originalName },
-          { $set: emp, $unset: { workplace: "" } }
+          {
+            $set: emp,
+            $unset: {
+              workplace: "",
+              ...(!inWorkBoard ? { inWorkBoard: "" } : {}),
+            },
+          }
         );
         if (name !== originalName) {
           await attendance.updateMany(

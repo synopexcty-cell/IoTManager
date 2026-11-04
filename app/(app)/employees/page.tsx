@@ -52,6 +52,8 @@ const emptyForm = {
   gender: "",
   birthDate: "",
   company: "",
+  /** Quản trị đặc biệt: hiện trên bảng công / OT / ăn ngoài */
+  inWorkBoard: false,
 };
 
 export default function EmployeesPage() {
@@ -117,6 +119,7 @@ export default function EmployeesPage() {
       gender: emp.gender || "",
       birthDate: emp.birthDate || "",
       company: employeeCompany(emp),
+      inWorkBoard: emp.role === "admin" && emp.inWorkBoard === true,
     });
     setModalOpen(true);
   };
@@ -153,6 +156,8 @@ export default function EmployeesPage() {
           gender: form.gender,
           birthDate: form.birthDate,
           company: form.company,
+          inWorkBoard:
+            form.role === "admin" ? form.inWorkBoard : false,
         });
         if (res.ok) {
           toast("Đã thêm nhân viên", "success");
@@ -182,6 +187,8 @@ export default function EmployeesPage() {
         gender: form.gender,
         birthDate: form.birthDate,
         company: form.company,
+        inWorkBoard:
+          form.role === "admin" ? form.inWorkBoard : false,
       });
       if (res.ok) {
         toast("Đã cập nhật nhân viên", "success");
@@ -431,7 +438,7 @@ export default function EmployeesPage() {
                         {emp.cccd || "—"}
                       </TableCell>
                       <TableCell>
-                        {roleLabel(emp.role)}
+                        {roleLabel(emp.role, emp.inWorkBoard)}
                       </TableCell>
                       <TableCell>
                         <span
@@ -467,7 +474,7 @@ export default function EmployeesPage() {
                     </p>
                     <p className="truncate text-xs text-neutral-500">
                       {employeeCompany(emp) ? `${employeeCompany(emp)} · ` : ""}
-                      {roleLabel(emp.role)}
+                      {roleLabel(emp.role, emp.inWorkBoard)}
                       {emp.phone ? ` · ${emp.phone}` : ""}
                       {" · "}
                       {emp.active ? "Hoạt động" : "Đã khóa"}
@@ -604,7 +611,14 @@ export default function EmployeesPage() {
             <select
               id="emp-role"
               value={form.role}
-              onChange={(e) => setField("role", e.target.value as Role)}
+              onChange={(e) => {
+                const role = e.target.value as Role;
+                setForm((prev) => ({
+                  ...prev,
+                  role,
+                  inWorkBoard: role === "admin" ? prev.inWorkBoard : false,
+                }));
+              }}
               className="h-11 min-h-[44px] w-full rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
             >
               <option value="employee">Nhân viên</option>
@@ -614,6 +628,23 @@ export default function EmployeesPage() {
               <option value="admin">Quản trị</option>
             </select>
           </div>
+          {form.role === "admin" && (
+            <label className="flex min-h-[44px] cursor-pointer items-start gap-3 text-sm text-neutral-800">
+              <input
+                type="checkbox"
+                checked={form.inWorkBoard}
+                onChange={(e) => setField("inWorkBoard", e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-neutral-300 text-primary focus:ring-primary"
+              />
+              <span>
+                <span className="font-medium">Quản trị đặc biệt (có công)</span>
+                <span className="mt-0.5 block text-xs font-normal text-neutral-500">
+                  Hiện trên bảng chấm công, lịch OT và ăn ngoài. Bỏ chọn nếu là
+                  HR/support — chỉ quản trị, không chấm công.
+                </span>
+              </span>
+            </label>
+          )}
           {modalMode === "edit" && (
             <label className="flex min-h-[44px] cursor-pointer items-center gap-3 text-sm text-neutral-800">
               <input

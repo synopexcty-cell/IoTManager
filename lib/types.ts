@@ -21,6 +21,12 @@ export interface Employee {
   shift?: string;
   /** Đơn vị: người của SIFLEX | SYNOPEX */
   company?: string;
+  /**
+   * Quản trị đặc biệt: hiện trên bảng công / OT / ăn ngoài.
+   * Admin thường (HR/support) để false/undefined — không hiện trên các bảng đó.
+   * Nhân viên luôn được coi là có trong bảng.
+   */
+  inWorkBoard?: boolean;
   /** true = lần đầu / mật khẩu tạm, bắt đổi khi đăng nhập */
   mustChangePassword?: boolean;
 }
